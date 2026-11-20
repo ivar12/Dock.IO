@@ -2,6 +2,7 @@
 {% block title %}Containers - Docker Manager{% endblock %}
 {% block content %}
 <h1>Containers</h1>
+{% if error %}<p class="alert warn">{{ error }}</p>{% endif %}
 <p class="muted">Updates recreate the container with its original config after pulling the newest image. Label a container <code>dockermgr.update=true</code> to include it in “selected” schedules.</p>
 
 <div class="stats">
@@ -31,7 +32,7 @@
   {% for c in containers %}
     <tr>
       <td>
-        <strong>{{ c.name }}</strong>
+        <strong><a href="/container/{{ c.name }}">{{ c.name }}</a></strong>
         {% if c.is_self %}<span class="tag">this app</span>{% endif %}
       </td>
       <td class="mono">{{ c.image }}</td>

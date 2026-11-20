@@ -59,4 +59,8 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 20px 0; }
 fieldset { border: 1px solid var(--line); border-radius: 6px; margin: 12px 0; }
 legend { color: var(--muted); font-size: 12px; }
 .checkboxes { max-height: 180px; overflow: auto; padding: 4px 10px; }
+main a { color: var(--accent); }
+table.plain { border: 0; }
+table.plain th, table.plain td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-transform: none; letter-spacing: normal; }
+table.plain th { color: var(--muted); width: 32%; }
 @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }

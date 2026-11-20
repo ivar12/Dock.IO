@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Network {{ detail.name }} - Docker Manager{% endblock %}
+{% block content %}
+<p class="muted"><a href="/networks">← Networks</a></p>
+<h1>{{ detail.name }}</h1>
+
+<div class="stats">
+  <div class="stat"><span class="num small-text">{{ detail.driver }}</span><span class="label">driver</span></div>
+  <div class="stat"><span class="num small-text">{{ detail.scope }}</span><span class="label">scope</span></div>
+  <div class="stat"><span class="num">{{ detail.containers | length }}</span><span class="label">containers</span></div>
+  <div class="stat {{ 'warn' if detail.internal else '' }}"><span class="num small-text">{{ 'internal' if detail.internal else 'external' }}</span><span class="label">type</span></div>
+</div>
+
+<div class="grid">
+  <section class="card">
+    <h2>Details</h2>
+    <table class="plain">
+      <tr><th>ID</th><td class="mono">{{ detail.id }}</td></tr>
+      <tr><th>Attachable</th><td>{{ 'yes' if detail.attachable else 'no' }}</td></tr>
+      <tr><th>Options</th><td class="mono">{{ detail.options or '-' }}</td></tr>
+      <tr><th>Labels</th><td class="mono">{{ detail.labels or '-' }}</td></tr>
+    </table>
+
+    <h2>Subnets</h2>
+    {% if not detail.subnets %}<p class="muted">None</p>{% endif %}
+    <table>
+      <thead><tr><th>Subnet</th><th>Gateway</th><th>IP range</th></tr></thead>
+      <tbody>
+      {% for subnet in detail.subnets %}
+        <tr><td class="mono">{{ subnet.subnet }}</td><td class="mono">{{ subnet.gateway or '-' }}</td><td class="mono">{{ subnet.ip_range or '-' }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    {% if detail.system %}
+      <p class="muted">System network — cannot be deleted.</p>
+    {% elif detail.containers %}
+      <p class="muted">Delete is disabled while containers are attached.</p>
+    {% else %}
+      <form method="post" action="/networks/{{ detail.short_id }}/delete" onsubmit="return confirm('Delete network {{ detail.name }}?')">
+        <button class="small danger">Delete network</button>
+      </form>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Attached containers</h2>
+    {% if not detail.containers %}<p class="muted">None</p>{% endif %}
+    <table>
+      <thead><tr><th>Name</th><th>IPv4</th><th>IPv6</th><th>MAC</th></tr></thead>
+      <tbody>
+      {% for container in detail.containers %}
+        <tr>
+          <td><a href="/container/{{ container.name }}">{{ container.name }}</a></td>
+          <td class="mono">{{ container.ipv4 or '-' }}</td>
+          <td class="mono">{{ container.ipv6 or '-' }}</td>
+          <td class="mono">{{ container.mac or '-' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+{% endblock %}

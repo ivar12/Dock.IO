@@ -10,7 +10,7 @@
   <tbody>
   {% for network in networks %}
     <tr>
-      <td><strong>{{ network.name }}</strong> {% if network.system %}<span class="tag">system</span>{% endif %}</td>
+      <td><strong><a href="/networks/{{ network.short_id }}">{{ network.name }}</a></strong> {% if network.system %}<span class="tag">system</span>{% endif %}</td>
       <td class="mono">{{ network.short_id }}</td>
       <td>{{ network.driver }}</td>
       <td class="mono">

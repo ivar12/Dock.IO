@@ -282,8 +282,8 @@ def list_images() -> list[dict]:
     return sorted(result, key=lambda x: (x["tags"] or [""])[0])
 
 
-def delete_image(identifier: str) -> str:
-    image = None
+def _find_image(identifier: str):
+    identifier = identifier.replace("sha256:", "")
     for candidate in client.images.list(all=True):
         candidate_id = candidate.id.replace("sha256:", "")
         if (
@@ -291,8 +291,12 @@ def delete_image(identifier: str) -> str:
             or candidate_id.startswith(identifier)
             or identifier in (candidate.tags or [])
         ):
-            image = candidate
-            break
+            return candidate
+    return None
+
+
+def delete_image(identifier: str) -> str:
+    image = _find_image(identifier)
     if not image:
         raise ValueError("image not found")
 
@@ -333,16 +337,19 @@ def list_networks() -> list[dict]:
     return sorted(result, key=lambda x: x["name"])
 
 
-def delete_network(identifier: str) -> str:
-    network = None
+def _find_network(identifier: str):
     for candidate in client.networks.list():
         if (
             candidate.id == identifier
             or candidate.id.startswith(identifier)
             or candidate.name == identifier
         ):
-            network = candidate
-            break
+            return candidate
+    return None
+
+
+def delete_network(identifier: str) -> str:
+    network = _find_network(identifier)
     if not network:
         raise ValueError("network not found")
     if network.name in ("bridge", "host", "none"):
@@ -356,3 +363,115 @@ def delete_network(identifier: str) -> str:
 
     api.remove_network(network.id)
     return f"network '{network.name}' deleted"
+
+
+# ------------------------------------------------------------------------- details
+def container_details(name: str) -> dict:
+    container = client.containers.get(name)
+    attrs = container.attrs or {}
+    config = attrs.get("Config") or {}
+    host = attrs.get("HostConfig") or {}
+    state = attrs.get("State") or {}
+    settings = attrs.get("NetworkSettings") or {}
+    networks = []
+    for net_name, endpoint in (settings.get("Networks") or {}).items():
+        networks.append(
+            {
+                "name": net_name,
+                "ipv4": endpoint.get("IPAddress", ""),
+                "ipv6": endpoint.get("GlobalIPv6Address", ""),
+                "mac": endpoint.get("MacAddress", ""),
+                "aliases": endpoint.get("Aliases") or [],
+            }
+        )
+    return {
+        "name": container.name,
+        "id": container.id,
+        "short_id": container.id[:12],
+        "status": container.status,
+        "state": state,
+        "health": (state.get("Health") or {}).get("Status"),
+        "image": config.get("Image", ""),
+        "image_id": attrs.get("Image", ""),
+        "created": attrs.get("Created", ""),
+        "command": config.get("Cmd"),
+        "entrypoint": config.get("Entrypoint"),
+        "environment": config.get("Env") or [],
+        "labels": config.get("Labels") or {},
+        "mounts": attrs.get("Mounts") or [],
+        "networks": networks,
+        "ports": settings.get("Ports") or {},
+        "restart_policy": host.get("RestartPolicy") or {},
+        "privileged": bool(host.get("Privileged")),
+        "memory": host.get("Memory", 0),
+        "log_config": host.get("LogConfig") or {},
+        "is_self": container.name == SELF_NAME,
+    }
+
+
+def image_details(identifier: str) -> dict:
+    image = _find_image(identifier)
+    if not image:
+        raise ValueError("image not found")
+    attrs = image.attrs or {}
+    config = attrs.get("Config") or {}
+    users = api.containers(all=True, filters={"ancestor": image.id})
+    return {
+        "id": image.id,
+        "short_id": image.id.replace("sha256:", "")[:12],
+        "tags": attrs.get("RepoTags") or [],
+        "created": attrs.get("Created", ""),
+        "size": attrs.get("Size", 0),
+        "architecture": attrs.get("Architecture", ""),
+        "os": attrs.get("Os", ""),
+        "docker_version": attrs.get("DockerVersion", ""),
+        "environment": config.get("Env") or [],
+        "labels": config.get("Labels") or {},
+        "layers": (attrs.get("RootFS") or {}).get("Layers") or [],
+        "command": config.get("Cmd"),
+        "entrypoint": config.get("Entrypoint"),
+        "users": [
+            (c.get("Names") or ["?"])[0].lstrip("/") for c in users
+        ],
+    }
+
+
+def network_details(identifier: str) -> dict:
+    network = _find_network(identifier)
+    if not network:
+        raise ValueError("network not found")
+    info = api.inspect_network(network.id)
+    ipam = info.get("IPAM") or {}
+    subnets = [
+        {
+            "subnet": c.get("Subnet", ""),
+            "gateway": c.get("Gateway", ""),
+            "ip_range": c.get("IPRange", ""),
+        }
+        for c in (ipam.get("Config") or [])
+    ]
+    attached = []
+    for container_id, endpoint in (info.get("Containers") or {}).items():
+        attached.append(
+            {
+                "id": container_id[:12],
+                "name": endpoint.get("Name", ""),
+                "ipv4": endpoint.get("IPv4Address", ""),
+                "ipv6": endpoint.get("IPv6Address", ""),
+                "mac": endpoint.get("MacAddress", ""),
+            }
+        )
+    return {
+        "id": network.id,
+        "short_id": network.id[:12],
+        "name": network.name,
+        "driver": info.get("Driver", ""),
+        "scope": info.get("Scope", ""),
+        "internal": bool(info.get("Internal")),
+        "attachable": bool(info.get("Attachable")),
+        "labels": info.get("Labels") or {},
+        "options": info.get("Options") or {},
+        "subnets": subnets,
+        "containers": attached,
+        "system": network.name in ("bridge", "host", "none"),
+    }

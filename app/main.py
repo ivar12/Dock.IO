@@ -164,12 +164,26 @@ def dashboard(request: Request):
     return templates.TemplateResponse(
         request,
         "dashboard.html",
-        {"user": _user(request), "containers": containers, "stats": stats},
+        {
+            "user": _user(request),
+            "containers": containers,
+            "stats": stats,
+            "error": request.query_params.get("error", ""),
+        },
     )
 
 
+def _safe_next(next_url: str, fallback: str) -> str:
+    """Keep post-action redirects on the page the user came from."""
+    if next_url.startswith("/") and not next_url.startswith("//"):
+        return next_url
+    return fallback
+
+
 @app.post("/container/{name}/action")
-def container_action(request: Request, name: str, act: str = Form(...)):
+def container_action(
+    request: Request, name: str, act: str = Form(...), next: str = Form("")
+):
     if redirect := _need_login(request):
         return redirect
     try:
@@ -177,16 +191,16 @@ def container_action(request: Request, name: str, act: str = Form(...)):
     except Exception as exc:
         msg = f"{name}: {act} failed - {exc}"
     db.log_action(_user(request), f"{act} container", msg)
-    return RedirectResponse("/", status_code=303)
+    return RedirectResponse(_safe_next(next, "/"), status_code=303)
 
 
 @app.post("/container/{name}/update")
-def container_update(request: Request, name: str):
+def container_update(request: Request, name: str, next: str = Form("")):
     if redirect := _need_login(request):
         return redirect
     ok, msg = dockerops.update_container(name)
     db.log_action(_user(request), "manual update", f"{'ok' if ok else 'failed'}: {msg}")
-    return RedirectResponse("/", status_code=303)
+    return RedirectResponse(_safe_next(next, "/"), status_code=303)
 
 
 @app.get("/schedules")
@@ -334,3 +348,53 @@ def network_delete(request: Request, network_id: str):
         db.log_action(_user(request), "delete network failed", str(exc))
         target = f"/networks?error={urllib.parse.quote(str(exc))}"
     return RedirectResponse(target, status_code=303)
+
+
+# ------------------------------------------------------------------------ detail views
+@app.get("/container/{name}")
+def container_detail(request: Request, name: str):
+    if redirect := _need_login(request):
+        return redirect
+    try:
+        detail = dockerops.container_details(name)
+    except Exception as exc:
+        return RedirectResponse(f"/?error={urllib.parse.quote(str(exc))}", status_code=302)
+    return templates.TemplateResponse(
+        request,
+        "container_detail.html",
+        {"user": _user(request), "detail": detail},
+    )
+
+
+@app.get("/images/{image_id:path}")
+def image_detail(request: Request, image_id: str):
+    if redirect := _need_login(request):
+        return redirect
+    try:
+        detail = dockerops.image_details(image_id)
+    except Exception as exc:
+        return RedirectResponse(
+            f"/images?error={urllib.parse.quote(str(exc))}", status_code=302
+        )
+    return templates.TemplateResponse(
+        request,
+        "image_detail.html",
+        {"user": _user(request), "detail": detail},
+    )
+
+
+@app.get("/networks/{network_id}")
+def network_detail(request: Request, network_id: str):
+    if redirect := _need_login(request):
+        return redirect
+    try:
+        detail = dockerops.network_details(network_id)
+    except Exception as exc:
+        return RedirectResponse(
+            f"/networks?error={urllib.parse.quote(str(exc))}", status_code=302
+        )
+    return templates.TemplateResponse(
+        request,
+        "network_detail.html",
+        {"user": _user(request), "detail": detail},
+    )

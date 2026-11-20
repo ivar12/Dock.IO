@@ -15,7 +15,7 @@
           {% for tag in image.tags %}<div class="mono">{{ tag }}</div>{% endfor %}
         {% else %}<span class="muted mono">&lt;none&gt;</span>{% endif %}
       </td>
-      <td class="mono">{{ image.short_id }}</td>
+      <td class="mono"><a href="/images/{{ image.short_id }}">{{ image.short_id }}</a></td>
       <td>{{ (image.size / 1048576) | round(1) }} MiB</td>
       <td class="mono">{{ image.created[:19] if image.created else '-' }}</td>
       <td>{{ image.containers }}</td>

@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}{{ detail.name }} - Docker Manager{% endblock %}
+{% block content %}
+<p class="muted"><a href="/">← Containers</a></p>
+<h1>{{ detail.name }}</h1>
+
+<div class="stats">
+  <div class="stat {{ 'ok' if detail.state.Running else 'warn' }}"><span class="num">{{ detail.status }}</span><span class="label">status</span></div>
+  <div class="stat"><span class="num mono small-text">{{ detail.image }}</span><span class="label">image</span></div>
+  <div class="stat"><span class="num small-text">{{ detail.short_id }}</span><span class="label">container id</span></div>
+  <div class="stat {{ 'warn' if detail.health == 'unhealthy' else '' }}"><span class="num small-text">{{ detail.health or '-' }}</span><span class="label">health</span></div>
+</div>
+
+<div class="actions" style="margin-bottom:18px">
+  {% set back = '/container/' ~ detail.name %}
+  {% if detail.state.Running %}
+    <form method="post" action="/container/{{ detail.name }}/action"><input type="hidden" name="act" value="stop"><input type="hidden" name="next" value="{{ back }}"><button class="small">Stop</button></form>
+    <form method="post" action="/container/{{ detail.name }}/action"><input type="hidden" name="act" value="restart"><input type="hidden" name="next" value="{{ back }}"><button class="small">Restart</button></form>
+  {% else %}
+    <form method="post" action="/container/{{ detail.name }}/action"><input type="hidden" name="act" value="start"><input type="hidden" name="next" value="{{ back }}"><button class="small">Start</button></form>
+  {% endif %}
+  {% if not detail.is_self %}
+  <form method="post" action="/container/{{ detail.name }}/update" onsubmit="return confirm('Pull the newest image and recreate {{ detail.name }}?')">
+    <input type="hidden" name="next" value="{{ back }}">
+    <button class="small primary">Update now</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="grid">
+  <section class="card">
+    <h2>Configuration</h2>
+    <table class="plain">
+      <tr><th>Image ID</th><td class="mono"><a href="/images/{{ detail.image_id }}">{{ detail.image_id }}</a></td></tr>
+      <tr><th>Created</th><td class="mono">{{ detail.created[:19] if detail.created else '-' }}</td></tr>
+      <tr><th>Command</th><td class="mono">{{ detail.command or '-' }}</td></tr>
+      <tr><th>Entrypoint</th><td class="mono">{{ detail.entrypoint or '-' }}</td></tr>
+      <tr><th>Restart policy</th><td>{{ detail.restart_policy.get('Name', '-') }}{{ ' (max ' ~ detail.restart_policy.get('MaximumRetryCount') ~ ')' if detail.restart_policy.get('MaximumRetryCount') }}</td></tr>
+      <tr><th>Privileged</th><td>{{ 'yes' if detail.privileged else 'no' }}</td></tr>
+      <tr><th>Memory limit</th><td>{{ (detail.memory / 1048576) | round(1) ~ ' MiB' if detail.memory else 'unlimited' }}</td></tr>
+      <tr><th>Log driver</th><td>{{ detail.log_config.get('Type', '-') }}</td></tr>
+    </table>
+
+    <h2>State</h2>
+    <table class="plain">
+      {% for key, value in detail.state.items() %}
+      <tr><th>{{ key }}</th><td class="mono">{{ value }}</td></tr>
+      {% endfor %}
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>Networks</h2>
+    {% if not detail.networks %}<p class="muted">None</p>{% endif %}
+    <table class="plain">
+      {% for net in detail.networks %}
+      <tr>
+        <th><a href="/networks/{{ net.name }}">{{ net.name }}</a></th>
+        <td class="mono">
+          {% if net.ipv4 %}{{ net.ipv4 }}{% endif %}
+          {% if net.ipv6 %}{{ net.ipv6 }}{% endif %}
+          {% if net.mac %}{{ net.mac }}{% endif %}
+        </td>
+      </tr>
+      {% if net.aliases %}<tr><th>aliases</th><td class="mono">{{ net.aliases | join(', ') }}</td></tr>{% endif %}
+      {% endfor %}
+    </table>
+
+    <h2>Ports</h2>
+    {% if not detail.ports %}<p class="muted">None</p>{% endif %}
+    <table class="plain">
+      {% for port, bindings in detail.ports.items() %}
+      <tr><th>{{ port }}</th><td class="mono">{{ bindings if bindings else 'exposed only' }}</td></tr>
+      {% endfor %}
+    </table>
+
+    <h2>Mounts</h2>
+    {% if not detail.mounts %}<p class="muted">None</p>{% endif %}
+    <table class="plain">
+      {% for mount in detail.mounts %}
+      <tr>
+        <th>{{ mount.get('Destination', '') }}</th>
+        <td class="mono">{{ mount.get('Source', '') }} ({{ mount.get('Type', '') }}, {{ 'rw' if mount.get('RW') else 'ro' }})</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>Environment</h2>
+    {% if not detail.environment %}<p class="muted">None</p>{% endif %}
+    <table class="plain">
+      {% for item in detail.environment %}
+        {% set parts = item.split('=', 1) %}
+        <tr><th class="mono">{{ parts[0] }}</th><td class="mono">{{ parts[1] if parts | length > 1 else '' }}</td></tr>
+      {% endfor %}
+    </table>
+
+    <h2>Labels</h2>
+    {% if not detail.labels %}<p class="muted">None</p>{% endif %}
+    <table class="plain">
+      {% for key, value in detail.labels.items() %}
+      <tr><th class="mono">{{ key }}</th><td class="mono">{{ value }}</td></tr>
+      {% endfor %}
+    </table>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Image {{ detail.short_id }} - Docker Manager{% endblock %}
+{% block content %}
+<p class="muted"><a href="/images">← Images</a></p>
+<h1>Image {{ detail.short_id }}</h1>
+
+<div class="stats">
+  <div class="stat"><span class="num small-text">{{ detail.tags | join(', ') if detail.tags else '<none>' }}</span><span class="label">tags</span></div>
+  <div class="stat"><span class="num">{{ (detail.size / 1048576) | round(1) }}</span><span class="label">MiB</span></div>
+  <div class="stat"><span class="num">{{ detail.layers | length }}</span><span class="label">layers</span></div>
+  <div class="stat {{ 'warn' if detail.users else '' }}"><span class="num">{{ detail.users | length }}</span><span class="label">containers</span></div>
+</div>
+
+<div class="grid">
+  <section class="card">
+    <h2>Details</h2>
+    <table class="plain">
+      <tr><th>ID</th><td class="mono">{{ detail.id }}</td></tr>
+      <tr><th>Created</th><td class="mono">{{ detail.created[:19] if detail.created else '-' }}</td></tr>
+      <tr><th>OS / Arch</th><td>{{ detail.os }} / {{ detail.architecture }}</td></tr>
+      <tr><th>Docker version</th><td>{{ detail.docker_version or '-' }}</td></tr>
+      <tr><th>Command</th><td class="mono">{{ detail.command or '-' }}</td></tr>
+      <tr><th>Entrypoint</th><td class="mono">{{ detail.entrypoint or '-' }}</td></tr>
+    </table>
+
+    <h2>Containers using this image</h2>
+    {% if detail.users %}
+      <ul>{% for name in detail.users %}<li><a href="/container/{{ name }}">{{ name }}</a></li>{% endfor %}</ul>
+      <p class="muted">Delete is disabled while containers use this image.</p>
+    {% else %}
+      <p class="muted">None — this image can be deleted.</p>
+      <form method="post" action="/images/{{ detail.short_id }}/delete" onsubmit="return confirm('Delete image {{ detail.short_id }}?')">
+        <button class="small danger">Delete image</button>
+      </form>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Environment</h2>
+    {% if not detail.environment %}<p class="muted">None</p>{% endif %}
+    <table class="plain">
+      {% for item in detail.environment %}
+        {% set parts = item.split('=', 1) %}
+        <tr><th class="mono">{{ parts[0] }}</th><td class="mono">{{ parts[1] if parts | length > 1 else '' }}</td></tr>
+      {% endfor %}
+    </table>
+
+    <h2>Labels</h2>
+    {% if not detail.labels %}<p class="muted">None</p>{% endif %}
+    <table class="plain">
+      {% for key, value in detail.labels.items() %}
+      <tr><th class="mono">{{ key }}</th><td class="mono">{{ value }}</td></tr>
+      {% endfor %}
+    </table>
+
+    <h2>Layers</h2>
+    <div class="mono small-text">
+      {% for layer in detail.layers %}<div>{{ layer }}</div>{% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}
