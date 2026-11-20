@@ -5,7 +5,8 @@ This is a **custom web application**, not a repackaged Portainer/Watchtower. The
 ## What it does
 
 - **Container management** – list all containers, start / stop / restart, and pull-new-image + recreate on demand.
-- **Resource details** – click any container, image or network to inspect its configuration, state, mounts, env, labels, subnets and attachments.
+- **Resource details** – click any container, image or network name/ID to inspect its configuration, state, mounts, env, labels, subnets and attachments; each list also has an Edit button in the Actions column.
+- **Schedule editing** – click a schedule name or its Edit button to change its name, cron, mode, enabled state and container selection.
 - **Scheduled updates** – multiple cron schedules, either for **all** containers or only **containers you choose**.
 - **Authentication** – local break-glass admin (bcrypt) **and** configurable OpenID Connect authorization-code flow (authentik works out of the box).
 - **Traefik** – websecure-only router for `dockermgr.home.networktechlab.nl`, `certresolver=production`.

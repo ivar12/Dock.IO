@@ -11,7 +11,7 @@
   {% for network in networks %}
     <tr>
       <td><strong><a href="/networks/{{ network.short_id }}">{{ network.name }}</a></strong> {% if network.system %}<span class="tag">system</span>{% endif %}</td>
-      <td class="mono">{{ network.short_id }}</td>
+      <td class="mono"><a href="/networks/{{ network.short_id }}">{{ network.short_id }}</a></td>
       <td>{{ network.driver }}</td>
       <td class="mono">
         {% for subnet in network.subnets %}<div>{{ subnet }}</div>{% endfor %}
@@ -19,6 +19,7 @@
       </td>
       <td>{{ network.containers }}</td>
       <td class="actions">
+        <a class="button small" href="/networks/{{ network.short_id }}">Edit</a>
         {% if network.system %}
           <span class="muted">protected</span>
         {% else %}

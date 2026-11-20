@@ -35,7 +35,7 @@
         <strong><a href="/container/{{ c.name }}">{{ c.name }}</a></strong>
         {% if c.is_self %}<span class="tag">this app</span>{% endif %}
       </td>
-      <td class="mono">{{ c.image }}</td>
+      <td class="mono">{% if c.image %}<a href="/images/{{ c.image | urlencode }}">{{ c.image }}</a>{% else %}-{% endif %}</td>
       <td>
         <span class="dot {{ 'up' if c.running else 'down' }}"></span>{{ c.status }}
         {% if c.health %}<span class="tag {{ 'no' if c.health == 'unhealthy' else '' }}">{{ c.health }}</span>{% endif %}
@@ -47,6 +47,7 @@
         {% else %}<span class="tag">all schedule</span>{% endif %}
       </td>
       <td class="actions">
+        <a class="button small" href="/container/{{ c.name }}">Edit</a>
         {% if c.running %}
           <form method="post" action="/container/{{ c.name }}/action"><input type="hidden" name="act" value="stop"><button class="small">Stop</button></form>
           <form method="post" action="/container/{{ c.name }}/action"><input type="hidden" name="act" value="restart"><button class="small">Restart</button></form>

@@ -180,6 +180,14 @@ def _safe_next(next_url: str, fallback: str) -> str:
     return fallback
 
 
+def _valid_cron(cron: str) -> bool:
+    try:
+        CronTrigger.from_crontab(cron)
+        return True
+    except ValueError:
+        return False
+
+
 @app.post("/container/{name}/action")
 def container_action(
     request: Request, name: str, act: str = Form(...), next: str = Form("")
@@ -231,14 +239,64 @@ def create_schedule(
         return redirect
     if mode not in ("all", "selected"):
         mode = "all"
-    try:
-        CronTrigger.from_crontab(cron)
-    except ValueError as exc:
-        db.log_action(_user(request), "schedule rejected", f"{cron}: {exc}")
+    if not _valid_cron(cron):
+        db.log_action(_user(request), "schedule rejected", f"invalid cron: {cron}")
         return RedirectResponse("/schedules?error=Invalid+cron+expression", status_code=303)
     schedule_id = db.create_schedule(name, cron, mode, containers, enabled == "on")
     scheduler.refresh_jobs()
     db.log_action(_user(request), "create schedule", f"{name} ({cron}, {mode})")
+    return RedirectResponse("/schedules", status_code=303)
+
+
+@app.get("/schedules/{schedule_id}/edit")
+def edit_schedule_page(request: Request, schedule_id: int):
+    if redirect := _need_login(request):
+        return redirect
+    schedule = db.get_schedule(schedule_id)
+    if not schedule:
+        return RedirectResponse("/schedules?error=Schedule+not+found", status_code=302)
+    return templates.TemplateResponse(
+        request,
+        "schedule_edit.html",
+        {
+            "user": _user(request),
+            "schedule": schedule,
+            "containers": [c["name"] for c in dockerops.list_containers()],
+        },
+    )
+
+
+@app.post("/schedules/{schedule_id}/edit")
+def edit_schedule(
+    request: Request,
+    schedule_id: int,
+    name: str = Form(...),
+    cron: str = Form(...),
+    mode: str = Form(...),
+    enabled: str = Form("on"),
+    containers: list[str] = Form([]),
+):
+    if redirect := _need_login(request):
+        return redirect
+    schedule = db.get_schedule(schedule_id)
+    if not schedule:
+        return RedirectResponse("/schedules?error=Schedule+not+found", status_code=302)
+    if mode not in ("all", "selected"):
+        mode = "all"
+    if not _valid_cron(cron):
+        return RedirectResponse(
+            f"/schedules/{schedule_id}/edit?error=Invalid+cron+expression", status_code=303
+        )
+    db.update_schedule(
+        schedule_id,
+        name=name,
+        cron=cron,
+        mode=mode,
+        containers=containers,
+        enabled=enabled == "on",
+    )
+    scheduler.refresh_jobs()
+    db.log_action(_user(request), "edit schedule", f"{schedule['name']} -> {name} ({cron}, {mode})")
     return RedirectResponse("/schedules", status_code=303)
 
 

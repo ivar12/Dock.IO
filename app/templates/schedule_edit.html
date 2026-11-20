@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ schedule.name }} - Docker Manager{% endblock %}
+{% block content %}
+<p class="muted"><a href="/schedules">← Schedules</a></p>
+<h1>Edit schedule: {{ schedule.name }}</h1>
+{% if request.query_params.get('error') %}<p class="alert warn">{{ request.query_params.get('error') }}</p>{% endif %}
+
+<div class="card narrow-wide">
+  <form method="post" action="/schedules/{{ schedule.id }}/edit">
+    <label>Name<input name="name" value="{{ schedule.name }}" required></label>
+    <label>Cron (5 fields: min hour day month weekday)<input name="cron" value="{{ schedule.cron }}" required></label>
+    <label>Mode
+      <select name="mode">
+        <option value="all" {{ 'selected' if schedule.mode == 'all' }}>All containers (except opted out)</option>
+        <option value="selected" {{ 'selected' if schedule.mode == 'selected' }}>Only containers I choose below / by label</option>
+      </select>
+    </label>
+    <label><input type="checkbox" name="enabled" {{ 'checked' if schedule.enabled }}> Enabled</label>
+    <fieldset>
+      <legend>Limit to these containers (optional)</legend>
+      <div class="checkboxes">
+      {% for name in containers %}
+        <label class="check"><input type="checkbox" name="containers" value="{{ name }}" {{ 'checked' if name in schedule.containers }}> {{ name }}</label>
+      {% endfor %}
+      </div>
+    </fieldset>
+    <div class="actions">
+      <button type="submit" class="primary">Save changes</button>
+      <a class="button" href="/schedules">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

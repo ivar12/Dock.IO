@@ -12,7 +12,7 @@
     <tr>
       <td>
         {% if image.tags %}
-          {% for tag in image.tags %}<div class="mono">{{ tag }}</div>{% endfor %}
+          {% for tag in image.tags %}<div class="mono"><a href="/images/{{ tag | urlencode }}">{{ tag }}</a></div>{% endfor %}
         {% else %}<span class="muted mono">&lt;none&gt;</span>{% endif %}
       </td>
       <td class="mono"><a href="/images/{{ image.short_id }}">{{ image.short_id }}</a></td>
@@ -20,6 +20,7 @@
       <td class="mono">{{ image.created[:19] if image.created else '-' }}</td>
       <td>{{ image.containers }}</td>
       <td class="actions">
+        <a class="button small" href="/images/{{ image.short_id }}">Edit</a>
         <form method="post" action="/images/{{ image.short_id }}/delete" onsubmit="return confirm('Delete image {{ image.short_id }}?')">
           <button class="small danger">Delete</button>
         </form>

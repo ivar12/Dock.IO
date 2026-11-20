@@ -11,18 +11,20 @@
     {% for s in schedules %}
     <div class="schedule">
       <div class="schedule-head">
-        <strong>{{ s.name }}</strong>
+        <strong><a href="/schedules/{{ s.id }}/edit">{{ s.name }}</a></strong>
         <span class="tag {{ 'yes' if s.enabled else '' }}">{{ 'enabled' if s.enabled else 'paused' }}</span>
       </div>
-      <div class="mono small-text">{{ s.cron }} &middot; {{ s.mode }}</div>
+      <div class="mono small-text"><a href="/schedules/{{ s.id }}/edit">{{ s.cron }}</a> &middot; {{ s.mode }}</div>
       <div class="muted small-text">
-        {% if s.containers %}Containers: {{ s.containers | join(', ') }}
+        {% if s.containers %}Containers:
+          {% for name in s.containers %}<a href="/container/{{ name }}">{{ name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
         {% elif s.mode == 'selected' %}Containers labelled <code>dockermgr.update=true</code>
         {% else %}All containers (except opted out){% endif %}
       </div>
       <div class="actions">
         <form method="post" action="/schedules/{{ s.id }}/run"><button class="small primary">Run now</button></form>
         <form method="post" action="/schedules/{{ s.id }}/toggle"><button class="small">{{ 'Pause' if s.enabled else 'Enable' }}</button></form>
+        <a class="button small" href="/schedules/{{ s.id }}/edit">Edit</a>
         <form method="post" action="/schedules/{{ s.id }}/delete" onsubmit="return confirm('Delete this schedule?')"><button class="small danger">Delete</button></form>
       </div>
     </div>
