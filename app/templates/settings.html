@@ -10,7 +10,6 @@
     <button type="button" data-section="overview" class="active">Overview</button>
     <button type="button" data-section="users">Users</button>
     <button type="button" data-section="security">Security</button>
-    <button type="button" data-section="application">Application</button>
   </aside>
 
   <div class="settings-content">
@@ -26,11 +25,13 @@
           <div class="stat"><span class="num">{{ overview.jobs }}</span><span class="label">active jobs</span></div>
           <div class="stat {{ 'ok' if overview.oidc_status == 'enabled' else '' }}"><span class="num small-text">{{ overview.oidc_status }}</span><span class="label">OpenID</span></div>
         </div>
-        <div class="actions">
-          <button type="button" class="small" data-goto="users">Manage users</button>
-          <button type="button" class="small" data-goto="security">Change password</button>
-          <button type="button" class="small" data-goto="application">App info</button>
-        </div>
+        <h2 style="margin-top:18px">Application information</h2>
+        <table class="plain">
+          {% for item in info %}
+          <tr><th>{{ item.label }}</th><td class="mono wrap">{{ item.value }}</td></tr>
+          {% endfor %}
+        </table>
+        <p class="muted small-text">Secrets are never shown here. Edit them in <code>.env</code> and restart the stack.</p>
       </div>
     </section>
 
@@ -114,17 +115,6 @@
       </div>
     </section>
 
-    <section class="settings-section" id="application" hidden>
-      <div class="card">
-        <h2>Application information</h2>
-        <table class="plain">
-          {% for item in info %}
-          <tr><th>{{ item.label }}</th><td class="mono wrap">{{ item.value }}</td></tr>
-          {% endfor %}
-        </table>
-        <p class="muted small-text">Secrets are never shown here. Edit them in <code>.env</code> and restart the stack.</p>
-      </div>
-    </section>
   </div>
 </div>
 
@@ -145,9 +135,6 @@
   }
   document.querySelectorAll('.settings-sidebar button').forEach(function (button) {
     button.addEventListener('click', function () { showSettingsSection(button.dataset.section); });
-  });
-  document.querySelectorAll('[data-goto]').forEach(function (button) {
-    button.addEventListener('click', function () { showSettingsSection(button.dataset.goto); });
   });
   showSettingsSection(location.hash.slice(1) || 'overview');
 </script>
