@@ -57,7 +57,9 @@ def _need_login(request: Request) -> RedirectResponse | None:
 def _need_admin(request: Request) -> RedirectResponse | None:
     if redirect := _need_login(request):
         return redirect
-    if _user(request) != ADMIN_USERNAME:
+    username = _user(request)
+    row = db.get_user(username) if username else None
+    if not row or (row["role"] != "admin" and username != ADMIN_USERNAME):
         return RedirectResponse("/?error=Admin+access+required", status_code=302)
     return None
 
@@ -496,6 +498,17 @@ def settings_page(request: Request):
     except Exception:
         docker_version = ""
 
+    users = db.list_users()
+    overview = {
+        "users": len(users),
+        "admins": sum(u["role"] == "admin" for u in users),
+        "local": sum(u["is_local"] for u in users),
+        "oidc": sum(not u["is_local"] for u in users),
+        "schedules": len(db.list_schedules()),
+        "jobs": len(scheduler.scheduler.get_jobs()),
+        "oidc_status": "enabled" if auth.OIDC_ENABLED else "disabled",
+    }
+
     info = [
         {"label": "Admin user (from .env)", "value": ADMIN_USERNAME},
         {"label": "Local admin password source", "value": "ADMIN_PASSWORD_HASH_B64 in .env (restored on restart)"},
@@ -518,7 +531,8 @@ def settings_page(request: Request):
         "settings.html",
         {
             "user": _user(request),
-            "users": db.list_users(),
+            "users": users,
+            "overview": overview,
             "info": info,
             "admin_username": ADMIN_USERNAME,
             "msg": request.query_params.get("msg", ""),
@@ -533,6 +547,7 @@ def settings_save_user(
     username: str = Form(...),
     password: str = Form(...),
     confirm_password: str = Form(...),
+    role: str = Form("user"),
 ):
     if redirect := _need_admin(request):
         return redirect
@@ -543,12 +558,32 @@ def settings_save_user(
         return _settings_redirect("error", "Passwords do not match")
     if len(password) < 8:
         return _settings_redirect("error", "Password must be at least 8 characters")
-    db.upsert_local_user(username, auth.hash_password(password))
-    db.log_action(_user(request), "save user", f"local password set for {username}")
+    if role not in ("admin", "user"):
+        role = "user"
+    if username == ADMIN_USERNAME:
+        role = "admin"
+    db.upsert_local_user(username, auth.hash_password(password), role=role)
+    db.log_action(_user(request), "save user", f"local password set for {username} ({role})")
     note = ""
     if username == ADMIN_USERNAME:
         note = " Note: the .env hash restores this password on restart."
     return _settings_redirect("msg", f"User '{username}' saved.{note}")
+
+
+@app.post("/settings/users/{username}/role")
+def settings_set_role(request: Request, username: str, role: str = Form(...)):
+    if redirect := _need_admin(request):
+        return redirect
+    if username == ADMIN_USERNAME:
+        return _settings_redirect("error", "The .env admin role cannot be changed here")
+    if username == _user(request):
+        return _settings_redirect("error", "You cannot change your own role")
+    if role not in ("admin", "user"):
+        return _settings_redirect("error", "Invalid role")
+    if not db.set_user_role(username, role):
+        return _settings_redirect("error", "User not found")
+    db.log_action(_user(request), "set user role", f"{username} -> {role}")
+    return _settings_redirect("msg", f"Role for '{username}' set to {role}")
 
 
 @app.post("/settings/users/{username}/delete")
@@ -584,7 +619,7 @@ def settings_change_password(
         return _settings_redirect("error", "New passwords do not match")
     if len(new_password) < 8:
         return _settings_redirect("error", "New password must be at least 8 characters")
-    db.upsert_local_user(username, auth.hash_password(new_password))
+    db.upsert_local_user(username, auth.hash_password(new_password), role=row["role"])
     db.log_action(username, "change own password", "settings")
     note = ""
     if username == ADMIN_USERNAME:

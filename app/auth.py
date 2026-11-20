@@ -60,7 +60,7 @@ def init_local_admin() -> None:
         password_hash = os.getenv("ADMIN_PASSWORD_HASH", "").strip().strip("'\"")
     if not password_hash:
         raise RuntimeError("ADMIN_PASSWORD_HASH_B64 is not set in .env")
-    db.upsert_local_user(username, password_hash)
+    db.upsert_local_user(username, password_hash, role="admin")
 
 
 def check_local_login(username: str, password: str) -> bool:

@@ -33,6 +33,7 @@ def init_db() -> None:
                 username TEXT PRIMARY KEY,
                 password_hash TEXT,
                 is_local INTEGER NOT NULL DEFAULT 1,
+                role TEXT NOT NULL DEFAULT 'user',
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -55,18 +56,28 @@ def init_db() -> None:
             );
             """
         )
+        columns = {r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
+        if "role" not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'")
+        conn.execute(
+            "UPDATE users SET role = 'admin' WHERE username = ?",
+            (os.getenv("ADMIN_USERNAME", "admin"),),
+        )
 
 
 # --------------------------------------------------------------------------- users
-def upsert_local_user(username: str, password_hash: str) -> None:
+def upsert_local_user(username: str, password_hash: str, role: str = "user") -> None:
+    if role not in ("admin", "user"):
+        role = "user"
     with connection() as conn:
         conn.execute(
-            """INSERT INTO users (username, password_hash, is_local)
-               VALUES (?, ?, 1)
+            """INSERT INTO users (username, password_hash, is_local, role)
+               VALUES (?, ?, 1, ?)
                ON CONFLICT(username) DO UPDATE SET
                    password_hash = excluded.password_hash,
-                   is_local = 1""",
-            (username, password_hash),
+                   is_local = 1,
+                   role = excluded.role""",
+            (username, password_hash, role),
         )
 
 
@@ -78,17 +89,26 @@ def get_user(username: str) -> sqlite3.Row | None:
 def list_users() -> list[dict]:
     with connection() as conn:
         rows = conn.execute(
-            "SELECT username, is_local, password_hash, created_at FROM users ORDER BY username"
+            "SELECT username, is_local, role, password_hash, created_at FROM users ORDER BY username"
         ).fetchall()
     return [
         {
             "username": r["username"],
             "is_local": bool(r["is_local"]),
+            "role": r["role"],
             "has_password": bool(r["password_hash"]),
             "created_at": r["created_at"],
         }
         for r in rows
     ]
+
+
+def set_user_role(username: str, role: str) -> bool:
+    if role not in ("admin", "user"):
+        return False
+    with connection() as conn:
+        cur = conn.execute("UPDATE users SET role = ? WHERE username = ?", (role, username))
+        return cur.rowcount > 0
 
 
 def delete_user(username: str) -> bool:

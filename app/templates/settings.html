@@ -5,69 +5,150 @@
 {% if msg %}<p class="alert ok">{{ msg }}</p>{% endif %}
 {% if error %}<p class="alert warn">{{ error }}</p>{% endif %}
 
-<div class="grid">
-  <section class="card">
-    <h2>Users</h2>
-    <p class="muted">User management is available to the configured admin ({{ admin_username }}). Local accounts have a bcrypt password; OIDC accounts are created automatically on first login.</p>
-    <table>
-      <thead><tr><th>Username</th><th>Type</th><th>Local password</th><th>Created</th><th>Actions</th></tr></thead>
-      <tbody>
-      {% for u in users %}
-        <tr>
-          <td>
-            <strong>{{ u.username }}</strong>
-            {% if u.username == admin_username %}<span class="tag">admin</span>{% endif %}
-            {% if u.username == user %}<span class="tag yes">you</span>{% endif %}
-          </td>
-          <td>{{ 'local' if u.is_local else 'OIDC' }}</td>
-          <td>{{ 'yes' if u.has_password else 'no' }}</td>
-          <td class="mono">{{ u.created_at }}</td>
-          <td class="actions">
-            {% if u.username == admin_username %}
-              <span class="muted">managed in .env</span>
-            {% elif u.username == user %}
-              <span class="muted">current session</span>
-            {% else %}
-              <form method="post" action="/settings/users/{{ u.username | urlencode }}/delete" onsubmit="return confirm('Delete user {{ u.username }}?')">
-                <button class="small danger">Delete</button>
-              </form>
-            {% endif %}
-          </td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+<div class="settings-layout">
+  <aside class="settings-sidebar">
+    <button type="button" data-section="overview" class="active">Overview</button>
+    <button type="button" data-section="users">Users</button>
+    <button type="button" data-section="security">Security</button>
+    <button type="button" data-section="application">Application</button>
+  </aside>
 
-    <h2 style="margin-top:24px">Add or update a local user</h2>
-    <form method="post" action="/settings/users">
-      <label>Username<input name="username" required autocomplete="off"></label>
-      <label>Password<input type="password" name="password" required minlength="8" autocomplete="new-password"></label>
-      <label>Confirm password<input type="password" name="confirm_password" required minlength="8" autocomplete="new-password"></label>
-      <button type="submit" class="primary">Save user</button>
-    </form>
-    <p class="muted small-text">Saving the admin username here changes it until restart; the hash in <code>.env</code> is restored on startup.</p>
-  </section>
-
-  <div>
-    <section class="card">
-      <h2>Change my password</h2>
-      <form method="post" action="/settings/password">
-        <label>Current password<input type="password" name="current_password" required autocomplete="current-password"></label>
-        <label>New password<input type="password" name="new_password" required minlength="8" autocomplete="new-password"></label>
-        <label>Confirm new password<input type="password" name="confirm_password" required minlength="8" autocomplete="new-password"></label>
-        <button type="submit" class="primary">Change password</button>
-      </form>
+  <div class="settings-content">
+    <section class="settings-section" id="overview">
+      <div class="card">
+        <h2>Overview</h2>
+        <div class="stats">
+          <div class="stat"><span class="num">{{ overview.users }}</span><span class="label">users</span></div>
+          <div class="stat"><span class="num">{{ overview.admins }}</span><span class="label">admins</span></div>
+          <div class="stat"><span class="num">{{ overview.local }}</span><span class="label">local</span></div>
+          <div class="stat"><span class="num">{{ overview.oidc }}</span><span class="label">OIDC</span></div>
+          <div class="stat"><span class="num">{{ overview.schedules }}</span><span class="label">schedules</span></div>
+          <div class="stat"><span class="num">{{ overview.jobs }}</span><span class="label">active jobs</span></div>
+          <div class="stat {{ 'ok' if overview.oidc_status == 'enabled' else '' }}"><span class="num small-text">{{ overview.oidc_status }}</span><span class="label">OpenID</span></div>
+        </div>
+        <div class="actions">
+          <button type="button" class="small" data-goto="users">Manage users</button>
+          <button type="button" class="small" data-goto="security">Change password</button>
+          <button type="button" class="small" data-goto="application">App info</button>
+        </div>
+      </div>
     </section>
 
-    <section class="card" style="margin-top:20px">
-      <h2>Application information</h2>
-      <table class="plain">
-        {% for item in info %}
-        <tr><th>{{ item.label }}</th><td class="mono wrap">{{ item.value }}</td></tr>
-        {% endfor %}
-      </table>
-      <p class="muted small-text">Secrets are never shown here. Edit them in <code>.env</code> and restart the stack.</p>
+    <section class="settings-section" id="users" hidden>
+      <div class="card">
+        <div class="section-head">
+          <div>
+            <h2>Users</h2>
+            <p class="muted">Admins can manage users and roles. OIDC accounts are created on first login.</p>
+          </div>
+          <button type="button" class="primary" onclick="toggleCreateUser()">+ Create user</button>
+        </div>
+        <table>
+          <thead><tr><th>Username</th><th>Role</th><th>Type</th><th>Local password</th><th>Created</th><th>Actions</th></tr></thead>
+          <tbody>
+          {% for u in users %}
+            <tr>
+              <td>
+                <strong>{{ u.username }}</strong>
+                {% if u.username == admin_username %}<span class="tag">.env admin</span>{% endif %}
+                {% if u.username == user %}<span class="tag yes">you</span>{% endif %}
+              </td>
+              <td><span class="tag {{ 'yes' if u.role == 'admin' else '' }}">{{ u.role }}</span></td>
+              <td>{{ 'local' if u.is_local else 'OIDC' }}</td>
+              <td>{{ 'yes' if u.has_password else 'no' }}</td>
+              <td class="mono">{{ u.created_at }}</td>
+              <td class="actions">
+                {% if u.username == admin_username %}
+                  <span class="muted">managed in .env</span>
+                {% elif u.username == user %}
+                  <span class="muted">current session</span>
+                {% else %}
+                  <form method="post" action="/settings/users/{{ u.username | urlencode }}/role" class="inline-form">
+                    <select name="role" aria-label="Role for {{ u.username }}">
+                      <option value="user" {{ 'selected' if u.role == 'user' }}>user</option>
+                      <option value="admin" {{ 'selected' if u.role == 'admin' }}>admin</option>
+                    </select>
+                    <button class="small">Save role</button>
+                  </form>
+                  <form method="post" action="/settings/users/{{ u.username | urlencode }}/delete" onsubmit="return confirm('Delete user {{ u.username }}?')">
+                    <button class="small danger">Delete</button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card" id="create-user-card" hidden>
+        <h2>Create user</h2>
+        <form method="post" action="/settings/users">
+          <label>Username<input name="username" id="new-username" required autocomplete="off"></label>
+          <label>Role
+            <select name="role">
+              <option value="user" selected>user</option>
+              <option value="admin">admin</option>
+            </select>
+          </label>
+          <label>Password<input type="password" name="password" required minlength="8" autocomplete="new-password"></label>
+          <label>Confirm password<input type="password" name="confirm_password" required minlength="8" autocomplete="new-password"></label>
+          <div class="actions">
+            <button type="submit" class="primary">Create user</button>
+            <button type="button" onclick="toggleCreateUser()">Cancel</button>
+          </div>
+        </form>
+        <p class="muted small-text">The .env admin password is restored on restart; use <code>.env</code> for a permanent change.</p>
+      </div>
+    </section>
+
+    <section class="settings-section" id="security" hidden>
+      <div class="card">
+        <h2>Change my password</h2>
+        <form method="post" action="/settings/password">
+          <label>Current password<input type="password" name="current_password" required autocomplete="current-password"></label>
+          <label>New password<input type="password" name="new_password" required minlength="8" autocomplete="new-password"></label>
+          <label>Confirm new password<input type="password" name="confirm_password" required minlength="8" autocomplete="new-password"></label>
+          <button type="submit" class="primary">Change password</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="settings-section" id="application" hidden>
+      <div class="card">
+        <h2>Application information</h2>
+        <table class="plain">
+          {% for item in info %}
+          <tr><th>{{ item.label }}</th><td class="mono wrap">{{ item.value }}</td></tr>
+          {% endfor %}
+        </table>
+        <p class="muted small-text">Secrets are never shown here. Edit them in <code>.env</code> and restart the stack.</p>
+      </div>
     </section>
   </div>
 </div>
+
+<script>
+  function showSettingsSection(name) {
+    document.querySelectorAll('.settings-section').forEach(function (section) {
+      section.hidden = section.id !== name;
+    });
+    document.querySelectorAll('.settings-sidebar button').forEach(function (button) {
+      button.classList.toggle('active', button.dataset.section === name);
+    });
+    if (location.hash !== '#' + name) history.replaceState(null, '', '#' + name);
+  }
+  function toggleCreateUser() {
+    var card = document.getElementById('create-user-card');
+    card.hidden = !card.hidden;
+    if (!card.hidden) document.getElementById('new-username').focus();
+  }
+  document.querySelectorAll('.settings-sidebar button').forEach(function (button) {
+    button.addEventListener('click', function () { showSettingsSection(button.dataset.section); });
+  });
+  document.querySelectorAll('[data-goto]').forEach(function (button) {
+    button.addEventListener('click', function () { showSettingsSection(button.dataset.goto); });
+  });
+  showSettingsSection(location.hash.slice(1) || 'overview');
+</script>
 {% endblock %}
