@@ -26,6 +26,8 @@ services:
       retries: 3
 
 networks:
+  internal:
+    internal: true
   backend:
     external: true
 
