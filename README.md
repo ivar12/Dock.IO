@@ -7,7 +7,7 @@ A **custom-built** Docker management web app with scheduled image updates, conta
 ![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-web%20UI-009485?logo=fastapi&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
-![Version](https://img.shields.io/badge/version-v1.8.5-brightgreen)
+![Version](https://img.shields.io/badge/version-v1.8.6-brightgreen)
 
 ## What it does
 
@@ -23,21 +23,23 @@ A **custom-built** Docker management web app with scheduled image updates, conta
 ## Requirements
 
 - Docker Engine with Compose v2
-- An external Docker network named `backend`
-- Traefik attached to `backend` with a cert resolver named `production`
+- An external Docker network named `backend` (Traefik should also be attached to it if you use Traefik)
+
+The app image is published to `ghcr.io/ivar12/docker-manager:latest` by GitHub Actions. No local build is needed.
 
 ## Run it
 
+Common setup:
+
 ```bash
 git clone https://github.com/ivar12/Docker-Manager.git
-cd docker-manager
+cd Docker-Manager
 
 docker network create backend   # skip if it already exists
 cp .env.example .env
-docker compose up -d
 ```
 
-Before starting, edit `.env`:
+Edit `.env` before starting:
 
 - Set `SESSION_SECRET` to a random value: `python3 -c "import secrets; print(secrets.token_hex(32))"`
 - Set `ADMIN_PASSWORD_HASH_B64` for your admin password (the example hash is for `changeme`):
@@ -45,18 +47,38 @@ Before starting, edit `.env`:
   python3 -c "import bcrypt,base64; print(base64.b64encode(bcrypt.hashpw(b'your-password', bcrypt.gensalt())).decode())"
   ```
 
-Then open <https://dockermgr.home.networktechlab.nl> and sign in with `ADMIN_USERNAME` and the password you hashed.
+The base image exposes port `8000`. The base `docker-compose.yml` contains no reverse-proxy labels, so choose one of the two options below.
 
-The app listens on port `8000` behind a Traefik `websecure` router. No plain HTTP router is configured.
+### With Traefik
 
-The image is published to `ghcr.io/ivar12/docker-manager:latest` by GitHub Actions on every push to `main`. No local build is needed.
-
-### Local test without Traefik
-
-Create an override outside the repo:
+Create `docker-compose.override.yml` next to `docker-compose.yml`:
 
 ```yaml
-# /tmp/opencode/docker-compose.test.yml
+services:
+  dockermgr:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=backend"
+      - "traefik.http.routers.dockermgr.rule=Host(`dockermgr.example.com`)"
+      - "traefik.http.routers.dockermgr.entrypoints=websecure"
+      - "traefik.http.routers.dockermgr.tls=true"
+      - "traefik.http.routers.dockermgr.tls.certresolver=production"
+      - "traefik.http.services.dockermgr.loadbalancer.server.port=8000"
+```
+
+Replace the host and cert resolver with your own values, then start:
+
+```bash
+docker compose up -d
+```
+
+Open `https://dockermgr.example.com`.
+
+### Without Traefik
+
+Create `docker-compose.override.yml` next to `docker-compose.yml` to publish a local port:
+
+```yaml
 services:
   dockermgr:
     ports:
@@ -65,11 +87,21 @@ services:
       SESSION_HTTPS_ONLY: "false"
 ```
 
+Then start:
+
 ```bash
-docker compose -f docker-compose.yml -f /tmp/opencode/docker-compose.test.yml up -d
+docker compose up -d
 ```
 
-Open <http://localhost:18000>.
+Open <http://localhost:18000>. `SESSION_HTTPS_ONLY=false` is only for local HTTP testing; keep it `true` when the app is behind HTTPS.
+
+To update later:
+
+```bash
+git pull
+docker compose pull
+docker compose up -d
+```
 
 ## Using it
 

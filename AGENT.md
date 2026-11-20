@@ -8,7 +8,7 @@ This is a **custom-built Docker manager webapp**, written from scratch in this r
 
 The app manages Docker containers, pulls images, recreates containers on update, runs scheduled updates, and provides local + OIDC authentication.
 
-Current released version: **v1.8.5**.
+Current released version: **v1.8.6**.
 
 ## Golden rules
 
@@ -49,16 +49,15 @@ Current released version: **v1.8.5**.
 | `Dockerfile` | Builds the image from source (used by GitHub Actions) |
 | `.github/workflows/docker-publish.yml` | Builds and publishes the image to GHCR on push/tag |
 | `requirements.txt` | Python dependencies |
-| `docker-compose.yml` | Compose stack using the published GHCR image, Traefik labels, volumes, networks |
+| `docker-compose.yml` | Generic Compose stack using the published GHCR image, volumes, networks; no Traefik labels |
 | `.env` / `.env.example` | Local secrets / tracked placeholders |
 | `README.md` | User-facing setup and feature docs |
 | `AGENT.md` | This handover guide |
 
 ## Deployment facts
 
-- Traefik host: `dockermgr.home.networktechlab.nl`
-- Entry point: `websecure` only, no web router
-- Cert resolver: `production`
+- Traefik is optional. The base Compose file has **no** reverse-proxy labels; add them in `docker-compose.override.yml` for your own host/cert resolver.
+- When Traefik is used: `websecure` entry point, TLS enabled, no plain HTTP router.
 - Service port: `8000`
 - Image: `ghcr.io/ivar12/docker-manager:latest`, published by GitHub Actions on push to `main` and on `v*` tags
 - GitHub repo: `ivar12/Docker-Manager` (public), remote via SSH `git@github.com:ivar12/Docker-Manager.git`
@@ -207,7 +206,7 @@ With the test override running:
 - Meaningful commit messages (`feat:`, `fix:`, `refactor:`, `chore:`, `deploy:`)
 - Annotated version tags after validated changes
 - Keep the working tree clean at handover
-- Current tag history includes `v1.8.5` (GHCR image publishing and image-based Compose)
+- Current tag history includes `v1.8.6` (generic Compose without Traefik labels, README with/without Traefik)
 
 ## Historical context
 

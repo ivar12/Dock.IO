@@ -9,15 +9,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - dockermgr_data:/app/data
     networks:
-      - backend   # Traefik reaches the UI here
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=backend"
-      - 'traefik.http.routers.dockermgr.rule=Host(`dockermgr.home.networktechlab.nl`)'
-      - "traefik.http.routers.dockermgr.entrypoints=websecure"
-      - "traefik.http.routers.dockermgr.tls=true"
-      - "traefik.http.routers.dockermgr.tls.certresolver=production"
-      - "traefik.http.services.dockermgr.loadbalancer.server.port=8000"
+      - backend
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
       interval: 30s
