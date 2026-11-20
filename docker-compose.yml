@@ -11,7 +11,6 @@ services:
       - dockermgr_data:/app/data
     networks:
       - backend   # Traefik reaches the UI here
-      - internal  # UI can also reach internal-only containers
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=backend"
@@ -27,8 +26,6 @@ services:
       retries: 3
 
 networks:
-  internal:
-    internal: true
   backend:
     external: true
 

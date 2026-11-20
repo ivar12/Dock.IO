@@ -58,7 +58,6 @@ This is a **custom web application**, not a repackaged Portainer/Watchtower. The
 ## Networks
 
 - `backend` – `external: true`, Traefik network. The app and its scheduler use this to pull images.
-- `internal` – `internal: true`, created by this stack. The UI is attached so you can reach internal-only containers.
 
 ## Authentication
 
