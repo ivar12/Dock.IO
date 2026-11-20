@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Containers - Docker Manager{% endblock %}
+{% block content %}
+<h1>Containers</h1>
+<p class="muted">Updates recreate the container with its original config after pulling the newest image. Label a container <code>dockermgr.update=true</code> to include it in “selected” schedules.</p>
+<table>
+  <thead><tr><th>Name</th><th>Image</th><th>Status</th><th>Auto-update</th><th>Actions</th></tr></thead>
+  <tbody>
+  {% for c in containers %}
+    <tr>
+      <td>
+        <strong>{{ c.name }}</strong>
+        {% if c.is_self %}<span class="tag">this app</span>{% endif %}
+      </td>
+      <td class="mono">{{ c.image }}</td>
+      <td><span class="dot {{ 'up' if c.running else 'down' }}"></span>{{ c.status }}</td>
+      <td>
+        {% if c.is_self %}<span class="tag">skipped</span>
+        {% elif c.opted_out %}<span class="tag">opted out</span>
+        {% elif c.update_label %}<span class="tag yes">selected</span>
+        {% else %}<span class="tag">all schedule</span>{% endif %}
+      </td>
+      <td class="actions">
+        {% if c.running %}
+          <form method="post" action="/container/{{ c.name }}/action"><input type="hidden" name="act" value="stop"><button class="small">Stop</button></form>
+          <form method="post" action="/container/{{ c.name }}/action"><input type="hidden" name="act" value="restart"><button class="small">Restart</button></form>
+        {% else %}
+          <form method="post" action="/container/{{ c.name }}/action"><input type="hidden" name="act" value="start"><button class="small">Start</button></form>
+        {% endif %}
+        <form method="post" action="/container/{{ c.name }}/update" onsubmit="return confirm('Pull the newest image and recreate {{ c.name }}?')">
+          <button class="small primary">Update now</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Schedules - Docker Manager{% endblock %}
+{% block content %}
+<h1>Update schedules</h1>
+{% if request.query_params.get('error') %}<p class="error">{{ request.query_params.get('error') }}</p>{% endif %}
+
+<div class="grid">
+  <section class="card">
+    <h2>Existing schedules</h2>
+    {% if not schedules %}<p class="muted">No schedules yet.</p>{% endif %}
+    {% for s in schedules %}
+    <div class="schedule">
+      <div class="schedule-head">
+        <strong>{{ s.name }}</strong>
+        <span class="tag {{ 'yes' if s.enabled else '' }}">{{ 'enabled' if s.enabled else 'paused' }}</span>
+      </div>
+      <div class="mono small-text">{{ s.cron }} &middot; {{ s.mode }}</div>
+      <div class="muted small-text">
+        {% if s.containers %}Containers: {{ s.containers | join(', ') }}
+        {% elif s.mode == 'selected' %}Containers labelled <code>dockermgr.update=true</code>
+        {% else %}All containers (except opted out){% endif %}
+      </div>
+      <div class="actions">
+        <form method="post" action="/schedules/{{ s.id }}/run"><button class="small primary">Run now</button></form>
+        <form method="post" action="/schedules/{{ s.id }}/toggle"><button class="small">{{ 'Pause' if s.enabled else 'Enable' }}</button></form>
+        <form method="post" action="/schedules/{{ s.id }}/delete" onsubmit="return confirm('Delete this schedule?')"><button class="small danger">Delete</button></form>
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+
+  <section class="card">
+    <h2>New schedule</h2>
+    <form method="post" action="/schedules">
+      <label>Name<input name="name" required placeholder="Nightly updates"></label>
+      <label>Cron (5 fields: min hour day month weekday)<input name="cron" value="0 4 * * 0" required></label>
+      <label>Mode
+        <select name="mode">
+          <option value="all">All containers (except opted out)</option>
+          <option value="selected">Only containers I choose below / by label</option>
+        </select>
+      </label>
+      <label><input type="checkbox" name="enabled" checked> Enabled</label>
+      <fieldset>
+        <legend>Limit to these containers (optional)</legend>
+        <div class="checkboxes">
+        {% for name in containers %}
+          <label class="check"><input type="checkbox" name="containers" value="{{ name }}"> {{ name }}</label>
+        {% endfor %}
+        </div>
+      </fieldset>
+      <button type="submit">Create schedule</button>
+    </form>
+  </section>
+</div>
+{% endblock %}
