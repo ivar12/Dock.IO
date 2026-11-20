@@ -7,7 +7,7 @@ This is a **custom web application**, not a repackaged Portainer/Watchtower. The
 - **Container management** – list all containers, start / stop / restart, and pull-new-image + recreate on demand.
 - **Resource details** – use the Show button in each row to inspect a container, image or network configuration, state, mounts, env, labels, subnets and attachments.
 - **Schedule details/editing** – a schedule's Show button opens a read-only view with Run, Edit, Pause and Delete actions.
-- **Settings** – admin-only page with an overview and sidebar categories (Overview, Users, Security), local user management with `admin`/`user` roles, a Create user button, password changes, and non-secret app/OIDC configuration shown directly under the overview stats.
+- **Settings** – admin-only page with an overview and sidebar categories (Overview, Users, Security), local user management with `admin`/`user` roles, a Create user button, dedicated Edit user pages for roles and password resets, and non-secret app/OIDC configuration shown directly under the overview stats.
 - **Scheduled updates** – multiple cron schedules, either for **all** containers or only **containers you choose**.
 - **Authentication** – local break-glass admin (bcrypt) **and** configurable OpenID Connect authorization-code flow (authentik works out of the box).
 - **Traefik** – websecure-only router for `dockermgr.home.networktechlab.nl`, `certresolver=production`.

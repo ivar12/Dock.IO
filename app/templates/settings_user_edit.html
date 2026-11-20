@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Edit user {{ target.username }} - Docker Manager{% endblock %}
+{% block content %}
+<p class="muted"><a href="/settings#users">← Settings / Users</a></p>
+<h1>Edit user: {{ target.username }}</h1>
+{% if msg %}<p class="alert ok">{{ msg }}</p>{% endif %}
+{% if error %}<p class="alert warn">{{ error }}</p>{% endif %}
+
+<div class="card narrow-wide">
+  <table class="plain">
+    <tr><th>Username</th><td class="mono">{{ target.username }}</td></tr>
+    <tr><th>Type</th><td>{{ 'local' if target.is_local else 'OIDC' }}</td></tr>
+    <tr><th>Local password</th><td>{{ 'set' if target.has_password else 'not set' }}</td></tr>
+    <tr><th>Created</th><td class="mono">{{ target.created_at }}</td></tr>
+  </table>
+
+  <form method="post" action="/settings/users/{{ target.username | urlencode }}/edit">
+    <h2>Role</h2>
+    {% if target.username == user %}
+      <input type="hidden" name="role" value="{{ target.role }}">
+      <select disabled>
+        <option value="user" {{ 'selected' if target.role == 'user' }}>user</option>
+        <option value="admin" {{ 'selected' if target.role == 'admin' }}>admin</option>
+      </select>
+      <p class="muted small-text">You cannot change your own role.</p>
+    {% else %}
+      <label>Role
+        <select name="role">
+          <option value="user" {{ 'selected' if target.role == 'user' }}>user</option>
+          <option value="admin" {{ 'selected' if target.role == 'admin' }}>admin</option>
+        </select>
+      </label>
+    {% endif %}
+
+    <h2>Reset password</h2>
+    <p class="muted">Leave both fields blank to keep the current password.</p>
+    <label>New password<input type="password" name="password" minlength="8" autocomplete="new-password"></label>
+    <label>Confirm new password<input type="password" name="confirm_password" minlength="8" autocomplete="new-password"></label>
+
+    <div class="actions" style="margin-top:18px">
+      <button type="submit" class="primary">Save changes</button>
+      <a class="button" href="/settings#users">Cancel</a>
+    </div>
+  </form>
+</div>
+
+{% if target.username != user %}
+<div class="card narrow-wide" style="margin-top:20px">
+  <h2>Danger zone</h2>
+  <form method="post" action="/settings/users/{{ target.username | urlencode }}/delete" onsubmit="return confirm('Delete user {{ target.username }}?')">
+    <button class="danger">Delete user</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

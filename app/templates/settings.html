@@ -61,19 +61,15 @@
               <td class="actions">
                 {% if u.username == admin_username %}
                   <span class="muted">managed in .env</span>
-                {% elif u.username == user %}
-                  <span class="muted">current session</span>
                 {% else %}
-                  <form method="post" action="/settings/users/{{ u.username | urlencode }}/role" class="inline-form">
-                    <select name="role" aria-label="Role for {{ u.username }}">
-                      <option value="user" {{ 'selected' if u.role == 'user' }}>user</option>
-                      <option value="admin" {{ 'selected' if u.role == 'admin' }}>admin</option>
-                    </select>
-                    <button class="small">Save role</button>
-                  </form>
-                  <form method="post" action="/settings/users/{{ u.username | urlencode }}/delete" onsubmit="return confirm('Delete user {{ u.username }}?')">
-                    <button class="small danger">Delete</button>
-                  </form>
+                  <a class="button small" href="/settings/users/{{ u.username | urlencode }}/edit">Edit</a>
+                  {% if u.username == user %}
+                    <span class="muted">current session</span>
+                  {% else %}
+                    <form method="post" action="/settings/users/{{ u.username | urlencode }}/delete" onsubmit="return confirm('Delete user {{ u.username }}?')">
+                      <button class="small danger">Delete</button>
+                    </form>
+                  {% endif %}
                 {% endif %}
               </td>
             </tr>

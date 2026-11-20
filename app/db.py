@@ -103,6 +103,26 @@ def list_users() -> list[dict]:
     ]
 
 
+def update_user(username: str, role: str | None = None, password_hash: str | None = None) -> bool:
+    updates: dict[str, object] = {}
+    if role is not None:
+        if role not in ("admin", "user"):
+            return False
+        updates["role"] = role
+    if password_hash is not None:
+        updates["password_hash"] = password_hash
+        updates["is_local"] = 1
+    if not updates:
+        return False
+    assignments = ", ".join(f"{key} = ?" for key in updates)
+    with connection() as conn:
+        cur = conn.execute(
+            f"UPDATE users SET {assignments} WHERE username = ?",
+            (*updates.values(), username),
+        )
+        return cur.rowcount > 0
+
+
 def set_user_role(username: str, role: str) -> bool:
     if role not in ("admin", "user"):
         return False

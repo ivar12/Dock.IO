@@ -570,6 +570,70 @@ def settings_save_user(
     return _settings_redirect("msg", f"User '{username}' saved.{note}")
 
 
+@app.get("/settings/users/{username}/edit")
+def settings_edit_user_page(request: Request, username: str):
+    if redirect := _need_admin(request):
+        return redirect
+    if username == ADMIN_USERNAME:
+        return _settings_redirect("error", "The .env admin is managed in .env")
+    row = db.get_user(username)
+    if not row:
+        return _settings_redirect("error", "User not found")
+    target = {
+        "username": row["username"],
+        "role": row["role"],
+        "is_local": bool(row["is_local"]),
+        "has_password": bool(row["password_hash"]),
+        "created_at": row["created_at"],
+    }
+    return templates.TemplateResponse(
+        request,
+        "settings_user_edit.html",
+        {
+            "user": _user(request),
+            "target": target,
+            "admin_username": ADMIN_USERNAME,
+            "msg": request.query_params.get("msg", ""),
+            "error": request.query_params.get("error", ""),
+        },
+    )
+
+
+@app.post("/settings/users/{username}/edit")
+def settings_edit_user(
+    request: Request,
+    username: str,
+    role: str = Form("user"),
+    password: str = Form(""),
+    confirm_password: str = Form(""),
+):
+    if redirect := _need_admin(request):
+        return redirect
+    if username == ADMIN_USERNAME:
+        return _settings_redirect("error", "The .env admin is managed in .env")
+    row = db.get_user(username)
+    if not row:
+        return _settings_redirect("error", "User not found")
+    if role not in ("admin", "user"):
+        return _settings_redirect("error", "Invalid role")
+    if username == _user(request) and role != row["role"]:
+        return _settings_redirect("error", "You cannot change your own role")
+
+    changes = [f"role={role}"]
+    if password or confirm_password:
+        if password != confirm_password:
+            return _settings_redirect("error", "Passwords do not match")
+        if len(password) < 8:
+            return _settings_redirect("error", "Password must be at least 8 characters")
+        db.update_user(username, role=role, password_hash=auth.hash_password(password))
+        changes.append("password reset")
+    else:
+        db.update_user(username, role=role)
+
+    db.log_action(_user(request), "edit user", f"{username}: {', '.join(changes)}")
+    return _settings_redirect("msg", f"User '{username}' updated ({', '.join(changes)})")
+
+
 @app.post("/settings/users/{username}/role")
 def settings_set_role(request: Request, username: str, role: str = Form(...)):
     if redirect := _need_admin(request):
