@@ -3,7 +3,7 @@
 ![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-web%20UI-009485?logo=fastapi&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
-![Version](https://img.shields.io/badge/version-v1.8.2-brightgreen)
+![Version](https://img.shields.io/badge/version-v1.8.3-brightgreen)
 
 A **custom-built** Docker management web application with scheduled image updates, container/image/network inspection, user management, and OpenID Connect support.
 
@@ -15,7 +15,7 @@ A **custom-built** Docker management web application with scheduled image update
 
 - **Container management** — list, start, stop, restart, and update containers from the web UI.
 - **Safe in-place updates** — pull the configured image, recreate the container with its original config, restore running state, and remove the superseded image when unused.
-- **Flexible scheduling** — multiple 5-field cron schedules for all containers, selected containers, or an explicit container list.
+- **Flexible scheduling** — multiple 5-field cron schedules for all containers, selected containers, or an explicit container list, with a date/time-style cron helper on New/Edit forms.
 - **Resource browser** — Show pages for containers, images, and networks with configuration, state, mounts, environment, labels, subnets, and attachments.
 - **Image & network management** — inspect and delete unused images/networks with safety checks.
 - **Authentication** — local bcrypt admin plus generic OIDC authorization-code flow, tested against authentik-style endpoints.
@@ -210,7 +210,15 @@ Schedules use **5-field cron**:
 min hour day month weekday
 ```
 
-Example: `0 4 * * 0` means Sunday 04:00 in `TZ`.
+The New/Edit schedule forms include a date/time-style cron helper with presets for daily, weekdays, selected weekdays, and hourly schedules. The raw cron field remains editable for custom schedules.
+
+APScheduler uses `0=Monday ... 6=Sunday` for the weekday field, which differs from many standard-cron references.
+
+Examples:
+
+- `0 4 * * *` — every day at 04:00
+- `0 4 * * 6` — Sunday at 04:00
+- `0 4 * * 0-4` — Monday to Friday at 04:00
 
 Modes:
 
@@ -307,4 +315,4 @@ git log --oneline --decorate --all
 git tag -n
 ```
 
-Current release: **v1.8.2**.
+Current release: **v1.8.3**.

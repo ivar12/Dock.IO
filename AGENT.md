@@ -8,7 +8,7 @@ This is a **custom-built Docker manager webapp**, written from scratch in this r
 
 The app manages Docker containers, pulls images, recreates containers on update, runs scheduled updates, and provides local + OIDC authentication.
 
-Current released version: **v1.8.2**.
+Current released version: **v1.8.3**.
 
 ## Golden rules
 
@@ -132,6 +132,8 @@ Default test login: `admin` / `changeme` (the shipped test hash; change it for r
 ## Update behavior
 
 - Schedules use 5-field cron: `min hour day month weekday`.
+- APScheduler weekday numbering is `0=Monday ... 6=Sunday` (not standard cron numbering). Use `6` for Sunday and `0-4` for Mon-Fri.
+- The New/Edit schedule forms include `_cron_helper.html`, a date/time-style builder that writes the cron field. Presets: daily, weekdays, selected weekdays, hourly, custom.
 - Modes:
   - `all` — all containers except opted-out and self
   - `selected` — containers labelled `dockermgr.update=true`
@@ -200,7 +202,7 @@ With the test override running:
 - Meaningful commit messages (`feat:`, `fix:`, `refactor:`, `chore:`, `deploy:`)
 - Annotated version tags after validated changes
 - Keep the working tree clean at handover
-- Current tag history includes `v1.8.2` (GitHub-ready README and handover docs)
+- Current tag history includes `v1.8.3` (schedule cron helper)
 
 ## Historical context
 

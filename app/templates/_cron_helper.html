@@ -1,0 +1,108 @@
+<div class="cron-helper" id="{{ cron_input_id }}-helper">
+  <p class="muted small-text">Build the schedule with date/time fields, or edit the cron text directly for anything custom.</p>
+  <div class="cron-helper-row">
+    <label>Quick preset
+      <select id="{{ cron_input_id }}-preset">
+        <option value="daily">Every day</option>
+        <option value="weekdays">Every weekday (Mon-Fri)</option>
+        <option value="weekly">Selected days of the week</option>
+        <option value="hourly">Every hour</option>
+        <option value="custom">Custom cron</option>
+      </select>
+    </label>
+    <label id="{{ cron_input_id }}-time-wrap">Run at
+      <input type="time" id="{{ cron_input_id }}-time" value="04:00">
+    </label>
+  </div>
+  <div id="{{ cron_input_id }}-days-wrap" hidden>
+    <span class="muted small-text">Days (APScheduler: 0=Mon ... 6=Sun)</span>
+    <div class="cron-days">
+      <label class="check"><input type="checkbox" class="cron-day" value="0"> Mon</label>
+      <label class="check"><input type="checkbox" class="cron-day" value="1"> Tue</label>
+      <label class="check"><input type="checkbox" class="cron-day" value="2"> Wed</label>
+      <label class="check"><input type="checkbox" class="cron-day" value="3"> Thu</label>
+      <label class="check"><input type="checkbox" class="cron-day" value="4"> Fri</label>
+      <label class="check"><input type="checkbox" class="cron-day" value="5"> Sat</label>
+      <label class="check"><input type="checkbox" class="cron-day" value="6"> Sun</label>
+    </div>
+  </div>
+  <p id="{{ cron_input_id }}-custom-note" class="muted small-text" hidden>Edit the cron field above manually for custom schedules.</p>
+</div>
+
+<script>
+(function () {
+  const cronInput = document.getElementById({{ cron_input_id | tojson }});
+  const prefix = {{ cron_input_id | tojson }} + '-';
+  const preset = document.getElementById(prefix + 'preset');
+  const timeInput = document.getElementById(prefix + 'time');
+  const timeWrap = document.getElementById(prefix + 'time-wrap');
+  const daysWrap = document.getElementById(prefix + 'days-wrap');
+  const customNote = document.getElementById(prefix + 'custom-note');
+  const dayChecks = Array.from(document.querySelectorAll('#' + prefix + 'days-wrap .cron-day'));
+
+  function pad(value) { return String(value).padStart(2, '0'); }
+
+  function cronParts() {
+    const parts = (cronInput.value || '').trim().split(/\s+/);
+    return parts.length === 5 ? parts : ['0', '4', '*', '*', '6'];
+  }
+
+  function loadFromCron() {
+    const parts = cronParts();
+    if (/^\d+$/.test(parts[0]) && /^\d+$/.test(parts[1])) {
+      timeInput.value = pad(parts[1]) + ':' + pad(parts[0]);
+    }
+
+    let mode = 'custom';
+    if (parts[2] === '*' && parts[3] === '*') {
+      if (parts[1] === '*') {
+        mode = 'hourly';
+      } else if (parts[4] === '*') {
+        mode = 'daily';
+      } else if (parts[4] === '0-4') {
+        mode = 'weekdays';
+      } else if (/^(\d+,)*\d+$/.test(parts[4])) {
+        mode = 'weekly';
+        const values = parts[4].split(',');
+        dayChecks.forEach(function (checkbox) {
+          checkbox.checked = values.indexOf(checkbox.value) !== -1;
+        });
+      }
+    }
+    preset.value = mode;
+  }
+
+  function update() {
+    const mode = preset.value;
+    timeWrap.hidden = mode === 'hourly' || mode === 'custom';
+    daysWrap.hidden = mode !== 'weekly';
+    customNote.hidden = mode !== 'custom';
+    if (mode === 'custom') return;
+
+    const timeParts = (timeInput.value || '04:00').split(':');
+    const minute = String(parseInt(timeParts[1], 10) || 0);
+    let hour = String(parseInt(timeParts[0], 10) || 0);
+    let dom = '*';
+    let month = '*';
+    let dow = '*';
+
+    if (mode === 'hourly') hour = '*';
+    if (mode === 'weekdays') dow = '0-4';
+    if (mode === 'weekly') {
+      const selected = dayChecks
+        .filter(function (checkbox) { return checkbox.checked; })
+        .map(function (checkbox) { return checkbox.value; })
+        .sort(function (a, b) { return a - b; });
+      dow = selected.length ? selected.join(',') : '0';
+    }
+
+    cronInput.value = [minute, hour, dom, month, dow].join(' ');
+  }
+
+  preset.addEventListener('change', update);
+  timeInput.addEventListener('change', update);
+  dayChecks.forEach(function (checkbox) { checkbox.addEventListener('change', update); });
+  loadFromCron();
+  update();
+})();
+</script>

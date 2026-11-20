@@ -69,7 +69,12 @@ main a { color: var(--accent); }
 .section-head { display: flex; justify-content: space-between; align-items: start; gap: 16px; }
 .inline-form { display: flex; gap: 6px; align-items: center; }
 .inline-form select { width: auto; min-width: 85px; }
+.cron-helper { border-left: 3px solid var(--accent); padding: 4px 0 4px 12px; margin: 12px 0; }
+.cron-helper-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cron-helper label { margin: 6px 0; }
+.cron-days { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+.cron-days label.check { margin: 0; }
 table.plain { border: 0; }
 table.plain th, table.plain td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-transform: none; letter-spacing: normal; }
 table.plain th { color: var(--muted); width: 32%; }
-@media (max-width: 900px) { .grid, .settings-layout { grid-template-columns: 1fr; } .settings-sidebar { position: static; flex-direction: row; flex-wrap: wrap; } }
+@media (max-width: 900px) { .grid, .settings-layout, .cron-helper-row { grid-template-columns: 1fr; } .settings-sidebar { position: static; flex-direction: row; flex-wrap: wrap; } }

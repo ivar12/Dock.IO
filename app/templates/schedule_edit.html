@@ -8,7 +8,8 @@
 <div class="card narrow-wide">
   <form method="post" action="/schedules/{{ schedule.id }}/edit">
     <label>Name<input name="name" value="{{ schedule.name }}" required></label>
-    <label>Cron (5 fields: min hour day month weekday)<input name="cron" value="{{ schedule.cron }}" required></label>
+    <label>Cron (5 fields: min hour day month weekday; 0=Mon ... 6=Sun)<input id="edit-cron" name="cron" value="{{ schedule.cron }}" required></label>
+    {% with cron_input_id = 'edit-cron' %}{% include '_cron_helper.html' %}{% endwith %}
     <label>Mode
       <select name="mode">
         <option value="all" {{ 'selected' if schedule.mode == 'all' }}>All containers (except opted out)</option>

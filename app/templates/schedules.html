@@ -35,7 +35,8 @@
     <h2>New schedule</h2>
     <form method="post" action="/schedules">
       <label>Name<input name="name" required placeholder="Nightly updates"></label>
-      <label>Cron (5 fields: min hour day month weekday)<input name="cron" value="0 4 * * 0" required></label>
+      <label>Cron (5 fields: min hour day month weekday; 0=Mon ... 6=Sun)<input id="new-cron" name="cron" value="0 4 * * 6" required></label>
+      {% with cron_input_id = 'new-cron' %}{% include '_cron_helper.html' %}{% endwith %}
       <label>Mode
         <select name="mode">
           <option value="all">All containers (except opted out)</option>
