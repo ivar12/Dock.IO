@@ -25,6 +25,7 @@ This is a **custom web application**, not a repackaged Portainer/Watchtower. The
 | `app/templates/`, `app/static/` | UI |
 | `Dockerfile`, `requirements.txt` | Builds the app image |
 | `docker-compose.yml`, `.env` | Deployment and secrets |
+| `AGENT.md` | Handover guide for AI agents and maintainers |
 
 ## Setup
 
