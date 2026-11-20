@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+*.db
+app/data/
+.env
+.venv/
+venv/
+.DS_Store

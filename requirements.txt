@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+jinja2
+docker
+apscheduler
+httpx
+bcrypt
+python-multipart
+itsdangerous
