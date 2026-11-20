@@ -124,12 +124,34 @@ def _supported_kwargs(func, kwargs: dict) -> dict:
     return {k: v for k, v in kwargs.items() if k in params}
 
 
+def _cleanup_old_image(old_image_id: str, container_name: str) -> str:
+    """Remove the superseded image if nothing else uses it."""
+    if not old_image_id:
+        return ""
+    try:
+        new_info = api.inspect_container(container_name)
+        if new_info.get("Image") == old_image_id:
+            return "old image unchanged"
+    except Exception:
+        return "could not verify new image"
+    try:
+        users = api.containers(all=True, filters={"ancestor": old_image_id})
+        if users:
+            return f"old image kept ({len(users)} container(s) still use it)"
+        api.remove_image(old_image_id, force=False)
+        return f"old image {old_image_id[:12]} removed"
+    except Exception as exc:
+        return f"old image cleanup skipped: {exc}"
+
+
 def update_container(name: str) -> tuple[bool, str]:
     """Pull the configured image and recreate the container with the same config."""
     try:
         info = api.inspect_container(name)
     except Exception as exc:
         return False, f"{name}: inspect failed: {exc}"
+
+    old_image_id = info.get("Image") or ""
 
     cfg = info.get("Config") or {}
     host = info.get("HostConfig") or {}
@@ -195,7 +217,11 @@ def update_container(name: str) -> tuple[bool, str]:
     except Exception as exc:
         return False, f"{name}: recreate failed: {exc}"
 
-    return True, f"{name}: updated ({pull_msg})"
+    cleanup = _cleanup_old_image(old_image_id, name)
+    detail = f"{name}: updated ({pull_msg})"
+    if cleanup:
+        detail += f"; {cleanup}"
+    return True, detail
 
 
 def select_targets(mode: str, explicit: list[str] | None = None) -> list[str]:
@@ -229,3 +255,104 @@ def db_side_effect(actor: str, name: str, ok: bool, msg: str) -> None:
     from . import db
 
     db.log_action(actor, "update", f"{name}: {'ok' if ok else 'failed'} - {msg}")
+
+
+# --------------------------------------------------------------------------- images
+def list_images() -> list[dict]:
+    usage: dict[str, int] = {}
+    for container in client.containers.list(all=True):
+        image_id = (container.attrs or {}).get("Image") or ""
+        if image_id:
+            usage[image_id] = usage.get(image_id, 0) + 1
+
+    result = []
+    for image in client.images.list(all=True):
+        attrs = image.attrs or {}
+        image_id = image.id
+        result.append(
+            {
+                "id": image_id,
+                "short_id": image_id.replace("sha256:", "")[:12],
+                "tags": attrs.get("RepoTags") or [],
+                "size": attrs.get("Size", 0),
+                "created": attrs.get("Created", ""),
+                "containers": usage.get(image_id, 0),
+            }
+        )
+    return sorted(result, key=lambda x: (x["tags"] or [""])[0])
+
+
+def delete_image(identifier: str) -> str:
+    image = None
+    for candidate in client.images.list(all=True):
+        candidate_id = candidate.id.replace("sha256:", "")
+        if (
+            candidate_id == identifier
+            or candidate_id.startswith(identifier)
+            or identifier in (candidate.tags or [])
+        ):
+            image = candidate
+            break
+    if not image:
+        raise ValueError("image not found")
+
+    users = api.containers(all=True, filters={"ancestor": image.id})
+    if users:
+        names = ", ".join(c.get("Names", ["?"])[0].lstrip("/") for c in users)
+        raise RuntimeError(f"image is in use by: {names}")
+
+    api.remove_image(image.id, force=False)
+    return f"image {image.id.replace('sha256:', '')[:12]} deleted"
+
+
+# ------------------------------------------------------------------------- networks
+def list_networks() -> list[dict]:
+    usage: dict[str, int] = {}
+    for container in client.containers.list(all=True):
+        nets = ((container.attrs or {}).get("NetworkSettings") or {}).get("Networks") or {}
+        for name in nets:
+            usage[name] = usage.get(name, 0) + 1
+
+    result = []
+    for network in client.networks.list():
+        attrs = network.attrs or {}
+        ipam = attrs.get("IPAM") or {}
+        subnets = [c.get("Subnet", "") for c in (ipam.get("Config") or []) if c.get("Subnet")]
+        result.append(
+            {
+                "id": network.id,
+                "short_id": network.id[:12],
+                "name": network.name,
+                "driver": attrs.get("Driver", ""),
+                "scope": attrs.get("Scope", ""),
+                "subnets": subnets,
+                "containers": usage.get(network.name, 0),
+                "system": network.name in ("bridge", "host", "none"),
+            }
+        )
+    return sorted(result, key=lambda x: x["name"])
+
+
+def delete_network(identifier: str) -> str:
+    network = None
+    for candidate in client.networks.list():
+        if (
+            candidate.id == identifier
+            or candidate.id.startswith(identifier)
+            or candidate.name == identifier
+        ):
+            network = candidate
+            break
+    if not network:
+        raise ValueError("network not found")
+    if network.name in ("bridge", "host", "none"):
+        raise RuntimeError(f"system network '{network.name}' cannot be deleted")
+
+    info = api.inspect_network(network.id)
+    containers = info.get("Containers") or {}
+    if containers:
+        names = ", ".join(v.get("Name", "?") for v in containers.values())
+        raise RuntimeError(f"network is in use by: {names}")
+
+    api.remove_network(network.id)
+    return f"network '{network.name}' deleted"

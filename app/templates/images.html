@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Images - Docker Manager{% endblock %}
+{% block content %}
+<h1>Images</h1>
+{% if msg %}<p class="alert ok">{{ msg }}</p>{% endif %}
+{% if error %}<p class="alert warn">{{ error }}</p>{% endif %}
+<p class="muted">Images still used by a container cannot be deleted. The updater removes superseded images automatically after a container is recreated.</p>
+<table>
+  <thead><tr><th>Repository / tag</th><th>ID</th><th>Size</th><th>Created</th><th>Containers</th><th>Actions</th></tr></thead>
+  <tbody>
+  {% for image in images %}
+    <tr>
+      <td>
+        {% if image.tags %}
+          {% for tag in image.tags %}<div class="mono">{{ tag }}</div>{% endfor %}
+        {% else %}<span class="muted mono">&lt;none&gt;</span>{% endif %}
+      </td>
+      <td class="mono">{{ image.short_id }}</td>
+      <td>{{ (image.size / 1048576) | round(1) }} MiB</td>
+      <td class="mono">{{ image.created[:19] if image.created else '-' }}</td>
+      <td>{{ image.containers }}</td>
+      <td class="actions">
+        <form method="post" action="/images/{{ image.short_id }}/delete" onsubmit="return confirm('Delete image {{ image.short_id }}?')">
+          <button class="small danger">Delete</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

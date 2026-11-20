@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import urllib.parse
 from contextlib import asynccontextmanager
 
 from apscheduler.triggers.cron import CronTrigger
@@ -271,3 +272,65 @@ def logs_page(request: Request):
         "logs.html",
         {"user": _user(request), "entries": db.list_audit(200)},
     )
+
+
+# ---------------------------------------------------------------------- images
+@app.get("/images")
+def images_page(request: Request):
+    if redirect := _need_login(request):
+        return redirect
+    return templates.TemplateResponse(
+        request,
+        "images.html",
+        {
+            "user": _user(request),
+            "images": dockerops.list_images(),
+            "msg": request.query_params.get("msg", ""),
+            "error": request.query_params.get("error", ""),
+        },
+    )
+
+
+@app.post("/images/{image_id:path}/delete")
+def image_delete(request: Request, image_id: str):
+    if redirect := _need_login(request):
+        return redirect
+    try:
+        msg = dockerops.delete_image(image_id)
+        db.log_action(_user(request), "delete image", msg)
+        target = f"/images?msg={urllib.parse.quote(msg)}"
+    except Exception as exc:
+        db.log_action(_user(request), "delete image failed", str(exc))
+        target = f"/images?error={urllib.parse.quote(str(exc))}"
+    return RedirectResponse(target, status_code=303)
+
+
+# -------------------------------------------------------------------- networks
+@app.get("/networks")
+def networks_page(request: Request):
+    if redirect := _need_login(request):
+        return redirect
+    return templates.TemplateResponse(
+        request,
+        "networks.html",
+        {
+            "user": _user(request),
+            "networks": dockerops.list_networks(),
+            "msg": request.query_params.get("msg", ""),
+            "error": request.query_params.get("error", ""),
+        },
+    )
+
+
+@app.post("/networks/{network_id}/delete")
+def network_delete(request: Request, network_id: str):
+    if redirect := _need_login(request):
+        return redirect
+    try:
+        msg = dockerops.delete_network(network_id)
+        db.log_action(_user(request), "delete network", msg)
+        target = f"/networks?msg={urllib.parse.quote(msg)}"
+    except Exception as exc:
+        db.log_action(_user(request), "delete network failed", str(exc))
+        target = f"/networks?error={urllib.parse.quote(str(exc))}"
+    return RedirectResponse(target, status_code=303)
