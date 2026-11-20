@@ -8,7 +8,7 @@ This is a **custom-built Docker manager webapp**, written from scratch in this r
 
 The app manages Docker containers, pulls images, recreates containers on update, runs scheduled updates, and provides local + OIDC authentication.
 
-Current released version: **v1.8.3**.
+Current released version: **v1.8.4**.
 
 ## Golden rules
 
@@ -202,7 +202,7 @@ With the test override running:
 - Meaningful commit messages (`feat:`, `fix:`, `refactor:`, `chore:`, `deploy:`)
 - Annotated version tags after validated changes
 - Keep the working tree clean at handover
-- Current tag history includes `v1.8.3` (schedule cron helper)
+- Current tag history includes `v1.8.4` (concise GitHub README)
 
 ## Historical context
 
