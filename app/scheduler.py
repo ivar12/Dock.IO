@@ -1,0 +1,67 @@
+"""Cron-driven update jobs, backed by the schedules table."""
+
+from __future__ import annotations
+
+import os
+from zoneinfo import ZoneInfo
+
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+
+from . import db, dockerops
+
+TIMEZONE = ZoneInfo(os.getenv("TZ", "UTC"))
+scheduler = BackgroundScheduler(timezone=TIMEZONE)
+
+
+def _job_id(schedule_id: int) -> str:
+    return f"schedule-{schedule_id}"
+
+
+def run_schedule(schedule_id: int) -> None:
+    schedule = db.get_schedule(schedule_id)
+    if not schedule:
+        return
+    targets = dockerops.select_targets(schedule["mode"], schedule["containers"])
+    db.log_action(
+        "scheduler",
+        f"run '{schedule['name']}'",
+        f"mode={schedule['mode']}, targets={', '.join(targets) or 'none'}",
+    )
+    for name, ok, msg in dockerops.apply_updates(targets, actor=f"scheduler:{schedule['name']}"):
+        db.log_action("scheduler", f"result {name}", f"{'ok' if ok else 'failed'}: {msg}")
+
+
+def add_job(schedule: dict) -> None:
+    scheduler.add_job(
+        run_schedule,
+        trigger=CronTrigger.from_crontab(schedule["cron"], timezone=TIMEZONE),
+        args=[schedule["id"]],
+        id=_job_id(schedule["id"]),
+        replace_existing=True,
+    )
+
+
+def remove_job(schedule_id: int) -> None:
+    try:
+        scheduler.remove_job(_job_id(schedule_id))
+    except Exception:
+        pass
+
+
+def refresh_jobs() -> None:
+    for schedule in db.list_schedules():
+        remove_job(schedule["id"])
+        if schedule["enabled"]:
+            add_job(schedule)
+
+
+def start() -> None:
+    refresh_jobs()
+    if not scheduler.running:
+        scheduler.start()
+
+
+def stop() -> None:
+    if scheduler.running:
+        scheduler.shutdown(wait=False)
