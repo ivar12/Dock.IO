@@ -3,6 +3,28 @@
 {% block content %}
 <h1>Containers</h1>
 <p class="muted">Updates recreate the container with its original config after pulling the newest image. Label a container <code>dockermgr.update=true</code> to include it in “selected” schedules.</p>
+
+<div class="stats">
+  <div class="stat"><span class="num">{{ stats.total }}</span><span class="label">containers</span></div>
+  <div class="stat ok"><span class="num">{{ stats.running }}</span><span class="label">running</span></div>
+  <div class="stat {{ 'warn' if stats.stopped else '' }}"><span class="num">{{ stats.stopped }}</span><span class="label">stopped</span></div>
+  <div class="stat {{ 'warn' if stats.unhealthy else '' }}"><span class="num">{{ stats.unhealthy }}</span><span class="label">unhealthy</span></div>
+  <div class="stat"><span class="num">{{ stats.all_schedule }}</span><span class="label">all schedule</span></div>
+  <div class="stat"><span class="num">{{ stats.selected }}</span><span class="label">selected</span></div>
+  <div class="stat"><span class="num">{{ stats.opted_out }}</span><span class="label">opted out</span></div>
+</div>
+
+{% if stats.issues %}
+<div class="alert warn">
+  <strong>{{ stats.issues | length }} {{ 'thing needs' if stats.issues | length == 1 else 'things need' }} attention:</strong>
+  <ul>
+  {% for issue in stats.issues %}<li>{{ issue }}</li>{% endfor %}
+  </ul>
+</div>
+{% else %}
+<div class="alert ok">All containers are running with no configuration issues detected.</div>
+{% endif %}
+
 <table>
   <thead><tr><th>Name</th><th>Image</th><th>Status</th><th>Auto-update</th><th>Actions</th></tr></thead>
   <tbody>
@@ -13,7 +35,10 @@
         {% if c.is_self %}<span class="tag">this app</span>{% endif %}
       </td>
       <td class="mono">{{ c.image }}</td>
-      <td><span class="dot {{ 'up' if c.running else 'down' }}"></span>{{ c.status }}</td>
+      <td>
+        <span class="dot {{ 'up' if c.running else 'down' }}"></span>{{ c.status }}
+        {% if c.health %}<span class="tag {{ 'no' if c.health == 'unhealthy' else '' }}">{{ c.health }}</span>{% endif %}
+      </td>
       <td>
         {% if c.is_self %}<span class="tag">skipped</span>
         {% elif c.opted_out %}<span class="tag">opted out</span>

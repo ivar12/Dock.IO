@@ -126,10 +126,44 @@ def logout(request: Request):
 def dashboard(request: Request):
     if redirect := _need_login(request):
         return redirect
+    containers = dockerops.list_containers()
+
+    issues = []
+    for c in containers:
+        if not c["running"]:
+            issues.append(f"{c['name']} is {c['status']}")
+        if c["health"] == "unhealthy":
+            issues.append(f"{c['name']} health check is unhealthy")
+        if c["image_missing"]:
+            issues.append(f"{c['name']} has no image configured")
+        if c["invalid_update_label"]:
+            issues.append(
+                f"{c['name']} has invalid dockermgr.update label "
+                f"('{c['labels'].get('dockermgr.update')}')"
+            )
+
+    stats = {
+        "total": len(containers),
+        "running": sum(c["running"] for c in containers),
+        "stopped": sum(not c["running"] for c in containers),
+        "unhealthy": sum(c["health"] == "unhealthy" for c in containers),
+        "all_schedule": sum(
+            not c["is_self"] and not c["opted_out"] and not c["update_label"]
+            for c in containers
+        ),
+        "selected": sum(
+            1
+            for c in containers
+            if not c["is_self"] and c["update_label"] is True and not c["opted_out"]
+        ),
+        "opted_out": sum(c["opted_out"] for c in containers),
+        "issues": issues,
+    }
+
     return templates.TemplateResponse(
         request,
         "dashboard.html",
-        {"user": _user(request), "containers": dockerops.list_containers()},
+        {"user": _user(request), "containers": containers, "stats": stats},
     )
 
 

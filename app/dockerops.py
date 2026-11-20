@@ -24,22 +24,48 @@ def _bool_label(labels: dict, key: str) -> bool | None:
     return str(value).lower() in ("1", "true", "yes", "on")
 
 
+def _valid_label_values() -> tuple[str, ...]:
+    return ("1", "true", "yes", "on", "0", "false", "no", "off")
+
+
 def list_containers() -> list[dict]:
     result = []
     for c in client.containers.list(all=True):
         labels = c.labels or {}
+        attrs = c.attrs or {}
+        state = attrs.get("State") or {}
+        configured_image = (attrs.get("Config") or {}).get("Image", "")
+
+        image = ""
+        try:
+            if c.image and c.image.tags:
+                image = c.image.tags[0]
+        except Exception:
+            pass
+        if not image:
+            image = configured_image
+
+        raw_update_label = labels.get("dockermgr.update")
+        invalid_label = (
+            raw_update_label is not None
+            and str(raw_update_label).lower() not in _valid_label_values()
+        )
+
         result.append(
             {
                 "id": c.id[:12],
                 "name": c.name,
-                "image": c.image.tags[0] if c.image and c.image.tags else (c.attrs.get("Config", {}) or {}).get("Image", ""),
+                "image": image,
+                "image_missing": not bool(image),
                 "status": c.status,
-                "running": c.attrs.get("State", {}).get("Running", False),
+                "running": bool(state.get("Running")),
+                "health": (state.get("Health") or {}).get("Status"),
                 "labels": labels,
                 "update_label": _bool_label(labels, "dockermgr.update"),
+                "invalid_update_label": invalid_label,
                 "opted_out": any(_bool_label(labels, k) is False for k in OPT_OUT_LABELS),
                 "is_self": c.name == SELF_NAME,
-                "ports": c.attrs.get("NetworkSettings", {}).get("Ports", {}) or {},
+                "ports": (attrs.get("NetworkSettings") or {}).get("Ports", {}) or {},
             }
         )
     return sorted(result, key=lambda x: x["name"])
