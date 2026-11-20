@@ -1,7 +1,6 @@
 services:
   dockermgr:
-    build: .
-    image: dockermgr:local
+    image: ghcr.io/ivar12/docker-manager:latest
     container_name: dockermgr
     restart: unless-stopped
     env_file:

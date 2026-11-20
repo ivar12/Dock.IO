@@ -7,7 +7,7 @@ A **custom-built** Docker management web app with scheduled image updates, conta
 ![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-web%20UI-009485?logo=fastapi&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
-![Version](https://img.shields.io/badge/version-v1.8.4-brightgreen)
+![Version](https://img.shields.io/badge/version-v1.8.5-brightgreen)
 
 ## What it does
 
@@ -29,12 +29,12 @@ A **custom-built** Docker management web app with scheduled image updates, conta
 ## Run it
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/ivar12/Docker-Manager.git
 cd docker-manager
 
 docker network create backend   # skip if it already exists
 cp .env.example .env
-docker compose up -d --build
+docker compose up -d
 ```
 
 Before starting, edit `.env`:
@@ -48,6 +48,8 @@ Before starting, edit `.env`:
 Then open <https://dockermgr.home.networktechlab.nl> and sign in with `ADMIN_USERNAME` and the password you hashed.
 
 The app listens on port `8000` behind a Traefik `websecure` router. No plain HTTP router is configured.
+
+The image is published to `ghcr.io/ivar12/docker-manager:latest` by GitHub Actions on every push to `main`. No local build is needed.
 
 ### Local test without Traefik
 
@@ -64,7 +66,7 @@ services:
 ```
 
 ```bash
-docker compose -f docker-compose.yml -f /tmp/opencode/docker-compose.test.yml up -d --build
+docker compose -f docker-compose.yml -f /tmp/opencode/docker-compose.test.yml up -d
 ```
 
 Open <http://localhost:18000>.

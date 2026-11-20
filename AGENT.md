@@ -8,7 +8,7 @@ This is a **custom-built Docker manager webapp**, written from scratch in this r
 
 The app manages Docker containers, pulls images, recreates containers on update, runs scheduled updates, and provides local + OIDC authentication.
 
-Current released version: **v1.8.4**.
+Current released version: **v1.8.5**.
 
 ## Golden rules
 
@@ -46,9 +46,10 @@ Current released version: **v1.8.4**.
 | `app/db.py` | SQLite schema, migrations, users, schedules, audit |
 | `app/templates/` | Jinja2 UI templates |
 | `app/static/style.css` | UI styling |
-| `Dockerfile` | Builds `dockermgr:local` from source |
+| `Dockerfile` | Builds the image from source (used by GitHub Actions) |
+| `.github/workflows/docker-publish.yml` | Builds and publishes the image to GHCR on push/tag |
 | `requirements.txt` | Python dependencies |
-| `docker-compose.yml` | Compose stack, Traefik labels, volumes, networks |
+| `docker-compose.yml` | Compose stack using the published GHCR image, Traefik labels, volumes, networks |
 | `.env` / `.env.example` | Local secrets / tracked placeholders |
 | `README.md` | User-facing setup and feature docs |
 | `AGENT.md` | This handover guide |
@@ -59,6 +60,8 @@ Current released version: **v1.8.4**.
 - Entry point: `websecure` only, no web router
 - Cert resolver: `production`
 - Service port: `8000`
+- Image: `ghcr.io/ivar12/docker-manager:latest`, published by GitHub Actions on push to `main` and on `v*` tags
+- GitHub repo: `ivar12/Docker-Manager` (public), remote via SSH `git@github.com:ivar12/Docker-Manager.git`
 - Networks:
   ```yaml
   networks:
@@ -81,12 +84,13 @@ From `/home/ivar/docker-manager`:
 python3 -m compileall -q app
 docker compose config --quiet
 
-# Build
-docker compose build
+# Build locally only when testing image changes
+docker build -t ghcr.io/ivar12/docker-manager:latest .
 
-# Run normally (requires Traefik on the external backend network)
+# Run normally: pulls the published image (requires Traefik on the external backend network)
 docker network create backend   # only if missing
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 
 # Stop
 docker compose down
@@ -109,7 +113,8 @@ services:
 Start with:
 
 ```bash
-docker compose -f docker-compose.yml -f /tmp/opencode/docker-compose.test.yml up -d --build
+docker compose -f docker-compose.yml -f /tmp/opencode/docker-compose.test.yml pull
+docker compose -f docker-compose.yml -f /tmp/opencode/docker-compose.test.yml up -d
 ```
 
 Test URL: <http://localhost:18000>  
@@ -182,7 +187,7 @@ Before committing, verify:
 ```bash
 python3 -m compileall -q app
 docker compose config --quiet
-docker compose build
+docker build -t ghcr.io/ivar12/docker-manager:latest .
 ```
 
 With the test override running:
@@ -202,7 +207,7 @@ With the test override running:
 - Meaningful commit messages (`feat:`, `fix:`, `refactor:`, `chore:`, `deploy:`)
 - Annotated version tags after validated changes
 - Keep the working tree clean at handover
-- Current tag history includes `v1.8.4` (concise GitHub README)
+- Current tag history includes `v1.8.5` (GHCR image publishing and image-based Compose)
 
 ## Historical context
 
