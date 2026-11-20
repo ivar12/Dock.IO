@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ schedule.name }} - Docker Manager{% endblock %}
+{% block content %}
+<p class="muted"><a href="/schedules">← Schedules</a></p>
+<h1>{{ schedule.name }}</h1>
+
+<div class="stats">
+  <div class="stat {{ 'ok' if schedule.enabled else 'warn' }}"><span class="num small-text">{{ 'enabled' if schedule.enabled else 'paused' }}</span><span class="label">status</span></div>
+  <div class="stat"><span class="num mono small-text">{{ schedule.cron }}</span><span class="label">cron</span></div>
+  <div class="stat"><span class="num small-text">{{ schedule.mode }}</span><span class="label">mode</span></div>
+  <div class="stat"><span class="num">{{ schedule.containers | length }}</span><span class="label">selected containers</span></div>
+</div>
+
+<section class="card">
+  <h2>Details</h2>
+  <table class="plain">
+    <tr><th>Name</th><td>{{ schedule.name }}</td></tr>
+    <tr><th>Cron (5 fields)</th><td class="mono">{{ schedule.cron }}</td></tr>
+    <tr><th>Mode</th><td>{{ schedule.mode }}</td></tr>
+    <tr><th>Enabled</th><td>{{ 'yes' if schedule.enabled else 'no' }}</td></tr>
+    <tr><th>Created</th><td class="mono">{{ schedule.created_at }}</td></tr>
+    <tr><th>Containers</th><td>
+      {% if schedule.containers %}{{ schedule.containers | join(', ') }}
+      {% elif schedule.mode == 'selected' %}Containers labelled <code>dockermgr.update=true</code>
+      {% else %}All containers (except opted out){% endif %}
+    </td></tr>
+  </table>
+
+  <div class="actions" style="margin-top:18px">
+    <form method="post" action="/schedules/{{ schedule.id }}/run"><button class="small primary">Run now</button></form>
+    <a class="button small" href="/schedules/{{ schedule.id }}/edit">Edit</a>
+    <form method="post" action="/schedules/{{ schedule.id }}/toggle"><button class="small">{{ 'Pause' if schedule.enabled else 'Enable' }}</button></form>
+    <form method="post" action="/schedules/{{ schedule.id }}/delete" onsubmit="return confirm('Delete this schedule?')"><button class="small danger">Delete</button></form>
+  </div>
+</section>
+{% endblock %}

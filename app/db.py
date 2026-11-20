@@ -75,6 +75,28 @@ def get_user(username: str) -> sqlite3.Row | None:
         return conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
 
 
+def list_users() -> list[dict]:
+    with connection() as conn:
+        rows = conn.execute(
+            "SELECT username, is_local, password_hash, created_at FROM users ORDER BY username"
+        ).fetchall()
+    return [
+        {
+            "username": r["username"],
+            "is_local": bool(r["is_local"]),
+            "has_password": bool(r["password_hash"]),
+            "created_at": r["created_at"],
+        }
+        for r in rows
+    ]
+
+
+def delete_user(username: str) -> bool:
+    with connection() as conn:
+        cur = conn.execute("DELETE FROM users WHERE username = ?", (username,))
+        return cur.rowcount > 0
+
+
 def ensure_oidc_user(username: str) -> None:
     with connection() as conn:
         conn.execute(

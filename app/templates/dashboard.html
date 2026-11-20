@@ -47,7 +47,7 @@
         {% else %}<span class="tag">all schedule</span>{% endif %}
       </td>
       <td class="actions">
-        <a class="button small" href="/container/{{ c.name }}">Edit</a>
+        <a class="button small" href="/container/{{ c.name }}">Show</a>
         {% if c.running %}
           <form method="post" action="/container/{{ c.name }}/action"><input type="hidden" name="act" value="stop"><button class="small">Stop</button></form>
           <form method="post" action="/container/{{ c.name }}/action"><input type="hidden" name="act" value="restart"><button class="small">Restart</button></form>

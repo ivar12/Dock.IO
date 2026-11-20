@@ -20,7 +20,7 @@
       <td class="mono">{{ image.created[:19] if image.created else '-' }}</td>
       <td>{{ image.containers }}</td>
       <td class="actions">
-        <a class="button small" href="/images/{{ image.short_id }}">Edit</a>
+        <a class="button small" href="/images/{{ image.short_id }}">Show</a>
         <form method="post" action="/images/{{ image.short_id }}/delete" onsubmit="return confirm('Delete image {{ image.short_id }}?')">
           <button class="small danger">Delete</button>
         </form>

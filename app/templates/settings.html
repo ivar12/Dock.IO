@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Settings - Docker Manager{% endblock %}
+{% block content %}
+<h1>Settings</h1>
+{% if msg %}<p class="alert ok">{{ msg }}</p>{% endif %}
+{% if error %}<p class="alert warn">{{ error }}</p>{% endif %}
+
+<div class="grid">
+  <section class="card">
+    <h2>Users</h2>
+    <p class="muted">User management is available to the configured admin ({{ admin_username }}). Local accounts have a bcrypt password; OIDC accounts are created automatically on first login.</p>
+    <table>
+      <thead><tr><th>Username</th><th>Type</th><th>Local password</th><th>Created</th><th>Actions</th></tr></thead>
+      <tbody>
+      {% for u in users %}
+        <tr>
+          <td>
+            <strong>{{ u.username }}</strong>
+            {% if u.username == admin_username %}<span class="tag">admin</span>{% endif %}
+            {% if u.username == user %}<span class="tag yes">you</span>{% endif %}
+          </td>
+          <td>{{ 'local' if u.is_local else 'OIDC' }}</td>
+          <td>{{ 'yes' if u.has_password else 'no' }}</td>
+          <td class="mono">{{ u.created_at }}</td>
+          <td class="actions">
+            {% if u.username == admin_username %}
+              <span class="muted">managed in .env</span>
+            {% elif u.username == user %}
+              <span class="muted">current session</span>
+            {% else %}
+              <form method="post" action="/settings/users/{{ u.username | urlencode }}/delete" onsubmit="return confirm('Delete user {{ u.username }}?')">
+                <button class="small danger">Delete</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    <h2 style="margin-top:24px">Add or update a local user</h2>
+    <form method="post" action="/settings/users">
+      <label>Username<input name="username" required autocomplete="off"></label>
+      <label>Password<input type="password" name="password" required minlength="8" autocomplete="new-password"></label>
+      <label>Confirm password<input type="password" name="confirm_password" required minlength="8" autocomplete="new-password"></label>
+      <button type="submit" class="primary">Save user</button>
+    </form>
+    <p class="muted small-text">Saving the admin username here changes it until restart; the hash in <code>.env</code> is restored on startup.</p>
+  </section>
+
+  <div>
+    <section class="card">
+      <h2>Change my password</h2>
+      <form method="post" action="/settings/password">
+        <label>Current password<input type="password" name="current_password" required autocomplete="current-password"></label>
+        <label>New password<input type="password" name="new_password" required minlength="8" autocomplete="new-password"></label>
+        <label>Confirm new password<input type="password" name="confirm_password" required minlength="8" autocomplete="new-password"></label>
+        <button type="submit" class="primary">Change password</button>
+      </form>
+    </section>
+
+    <section class="card" style="margin-top:20px">
+      <h2>Application information</h2>
+      <table class="plain">
+        {% for item in info %}
+        <tr><th>{{ item.label }}</th><td class="mono wrap">{{ item.value }}</td></tr>
+        {% endfor %}
+      </table>
+      <p class="muted small-text">Secrets are never shown here. Edit them in <code>.env</code> and restart the stack.</p>
+    </section>
+  </div>
+</div>
+{% endblock %}

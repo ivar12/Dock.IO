@@ -19,6 +19,7 @@ SESSION_SECRET = os.getenv("SESSION_SECRET", "")
 if not SESSION_SECRET:
     raise RuntimeError("SESSION_SECRET is not set in .env")
 SESSION_HTTPS_ONLY = os.getenv("SESSION_HTTPS_ONLY", "true").lower() in ("1", "true", "yes")
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 
 
 @asynccontextmanager
@@ -50,6 +51,14 @@ def _user(request: Request) -> str | None:
 def _need_login(request: Request) -> RedirectResponse | None:
     if not _user(request):
         return RedirectResponse("/login", status_code=302)
+    return None
+
+
+def _need_admin(request: Request) -> RedirectResponse | None:
+    if redirect := _need_login(request):
+        return redirect
+    if _user(request) != ADMIN_USERNAME:
+        return RedirectResponse("/?error=Admin+access+required", status_code=302)
     return None
 
 
@@ -223,6 +232,20 @@ def schedules_page(request: Request):
             "schedules": db.list_schedules(),
             "containers": [c["name"] for c in dockerops.list_containers()],
         },
+    )
+
+
+@app.get("/schedules/{schedule_id}")
+def schedule_detail_page(request: Request, schedule_id: int):
+    if redirect := _need_login(request):
+        return redirect
+    schedule = db.get_schedule(schedule_id)
+    if not schedule:
+        return RedirectResponse("/schedules?error=Schedule+not+found", status_code=302)
+    return templates.TemplateResponse(
+        request,
+        "schedule_detail.html",
+        {"user": _user(request), "schedule": schedule},
     )
 
 
@@ -456,3 +479,114 @@ def network_detail(request: Request, network_id: str):
         "network_detail.html",
         {"user": _user(request), "detail": detail},
     )
+
+
+# --------------------------------------------------------------------------- settings
+def _settings_redirect(kind: str, text: str) -> RedirectResponse:
+    return RedirectResponse(f"/settings?{kind}={urllib.parse.quote(text)}", status_code=303)
+
+
+@app.get("/settings")
+def settings_page(request: Request):
+    if redirect := _need_admin(request):
+        return redirect
+
+    try:
+        docker_version = dockerops.client.api.version().get("ApiVersion", "")
+    except Exception:
+        docker_version = ""
+
+    info = [
+        {"label": "Admin user (from .env)", "value": ADMIN_USERNAME},
+        {"label": "Local admin password source", "value": "ADMIN_PASSWORD_HASH_B64 in .env (restored on restart)"},
+        {"label": "Session cookie", "value": "HTTPS only" if SESSION_HTTPS_ONLY else "HTTP allowed (local testing)"},
+        {"label": "OIDC", "value": "enabled" if auth.OIDC_ENABLED else "disabled"},
+        {"label": "OIDC client ID", "value": auth.OIDC_CLIENT_ID or "-"},
+        {"label": "OIDC client secret", "value": "configured" if auth.OIDC_CLIENT_SECRET else "not configured"},
+        {"label": "OIDC redirect URL", "value": auth.OIDC_REDIRECT_URL},
+        {"label": "OIDC authorize URL", "value": auth.OIDC_AUTHORIZE_URL or "-"},
+        {"label": "OIDC user claim", "value": auth.OIDC_USER_CLAIM},
+        {"label": "Active scheduler jobs", "value": len(scheduler.scheduler.get_jobs())},
+        {"label": "Timezone", "value": os.getenv("TZ", "UTC")},
+        {"label": "Self container", "value": os.getenv("SELF_CONTAINER", "") or "-"},
+        {"label": "Data directory", "value": str(db.DATA_DIR)},
+        {"label": "Docker API version", "value": docker_version or "-"},
+    ]
+
+    return templates.TemplateResponse(
+        request,
+        "settings.html",
+        {
+            "user": _user(request),
+            "users": db.list_users(),
+            "info": info,
+            "admin_username": ADMIN_USERNAME,
+            "msg": request.query_params.get("msg", ""),
+            "error": request.query_params.get("error", ""),
+        },
+    )
+
+
+@app.post("/settings/users")
+def settings_save_user(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    confirm_password: str = Form(...),
+):
+    if redirect := _need_admin(request):
+        return redirect
+    username = username.strip()
+    if not username:
+        return _settings_redirect("error", "Username is required")
+    if password != confirm_password:
+        return _settings_redirect("error", "Passwords do not match")
+    if len(password) < 8:
+        return _settings_redirect("error", "Password must be at least 8 characters")
+    db.upsert_local_user(username, auth.hash_password(password))
+    db.log_action(_user(request), "save user", f"local password set for {username}")
+    note = ""
+    if username == ADMIN_USERNAME:
+        note = " Note: the .env hash restores this password on restart."
+    return _settings_redirect("msg", f"User '{username}' saved.{note}")
+
+
+@app.post("/settings/users/{username}/delete")
+def settings_delete_user(request: Request, username: str):
+    if redirect := _need_admin(request):
+        return redirect
+    if username == ADMIN_USERNAME:
+        return _settings_redirect("error", "The .env admin cannot be deleted here")
+    if username == _user(request):
+        return _settings_redirect("error", "You cannot delete the account you are logged in with")
+    if not db.delete_user(username):
+        return _settings_redirect("error", "User not found")
+    db.log_action(_user(request), "delete user", username)
+    return _settings_redirect("msg", f"User '{username}' deleted")
+
+
+@app.post("/settings/password")
+def settings_change_password(
+    request: Request,
+    current_password: str = Form(...),
+    new_password: str = Form(...),
+    confirm_password: str = Form(...),
+):
+    if redirect := _need_admin(request):
+        return redirect
+    username = _user(request)
+    row = db.get_user(username)
+    if not row or not row["is_local"] or not row["password_hash"]:
+        return _settings_redirect("error", "This account has no local password to change")
+    if not auth.verify_password(current_password, row["password_hash"]):
+        return _settings_redirect("error", "Current password is incorrect")
+    if new_password != confirm_password:
+        return _settings_redirect("error", "New passwords do not match")
+    if len(new_password) < 8:
+        return _settings_redirect("error", "New password must be at least 8 characters")
+    db.upsert_local_user(username, auth.hash_password(new_password))
+    db.log_action(username, "change own password", "settings")
+    note = ""
+    if username == ADMIN_USERNAME:
+        note = " Note: the .env hash restores this password on restart."
+    return _settings_redirect("msg", f"Password changed.{note}")

@@ -5,8 +5,9 @@ This is a **custom web application**, not a repackaged Portainer/Watchtower. The
 ## What it does
 
 - **Container management** – list all containers, start / stop / restart, and pull-new-image + recreate on demand.
-- **Resource details** – use the Edit button in each row to inspect a container, image or network configuration, state, mounts, env, labels, subnets and attachments.
-- **Schedule editing** – use a schedule's Edit button to change its name, cron, mode, enabled state and container selection.
+- **Resource details** – use the Show button in each row to inspect a container, image or network configuration, state, mounts, env, labels, subnets and attachments.
+- **Schedule details/editing** – a schedule's Show button opens a read-only view with Run, Edit, Pause and Delete actions.
+- **Settings** – admin-only page for local user management, changing your own password, and reviewing non-secret app/OIDC configuration.
 - **Scheduled updates** – multiple cron schedules, either for **all** containers or only **containers you choose**.
 - **Authentication** – local break-glass admin (bcrypt) **and** configurable OpenID Connect authorization-code flow (authentik works out of the box).
 - **Traefik** – websecure-only router for `dockermgr.home.networktechlab.nl`, `certresolver=production`.
@@ -67,6 +68,8 @@ This is a **custom web application**, not a repackaged Portainer/Watchtower. The
 ### Local admin
 
 User `admin` (or `ADMIN_USERNAME`) with the password whose bcrypt hash is in `.env`. This account always works as a break-glass login.
+
+The admin-only **Settings** page can add/update local users, delete other users and change the current password. The `.env` admin hash is restored on every restart, so change that value in `.env` for a permanent password change.
 
 ### OpenID Connect / authentik
 
