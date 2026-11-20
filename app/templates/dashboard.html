@@ -32,10 +32,10 @@
   {% for c in containers %}
     <tr>
       <td>
-        <strong><a href="/container/{{ c.name }}">{{ c.name }}</a></strong>
+        <strong>{{ c.name }}</strong>
         {% if c.is_self %}<span class="tag">this app</span>{% endif %}
       </td>
-      <td class="mono">{% if c.image %}<a href="/images/{{ c.image | urlencode }}">{{ c.image }}</a>{% else %}-{% endif %}</td>
+      <td class="mono">{{ c.image if c.image else '-' }}</td>
       <td>
         <span class="dot {{ 'up' if c.running else 'down' }}"></span>{{ c.status }}
         {% if c.health %}<span class="tag {{ 'no' if c.health == 'unhealthy' else '' }}">{{ c.health }}</span>{% endif %}
