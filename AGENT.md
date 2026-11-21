@@ -8,14 +8,14 @@ This is a **custom-built Docker manager webapp**, written from scratch in this r
 
 The app manages Docker containers, pulls images, recreates containers on update, runs scheduled updates, and provides local + OIDC authentication.
 
-Current released version: **v1.8.6**.
+Current released version: **v1.8.7**.
 
 ## Golden rules
 
 1. Keep secrets out of git. `.env` is gitignored; `.env.example` is tracked.
 2. Never commit `ADMIN_PASSWORD_HASH_B64`, `SESSION_SECRET`, `OIDC_CLIENT_SECRET`, tokens, or database files.
 3. `/var/run/docker.sock` is mounted into the app. Treat the app as root-equivalent on the host.
-4. Do not attach the app to any network other than `backend`. The `internal` network is declared but intentionally unused.
+4. Keep the base Compose file environment-agnostic: no external networks, no published ports, no reverse-proxy labels. Put deployment-specific networking in `docker-compose.override.yml`.
 5. Preserve the user's UI preferences:
    - Row buttons in list pages are **Show**, not Edit.
    - Titles and IDs in list tables are **plain text**, not links.
@@ -33,7 +33,7 @@ Current released version: **v1.8.6**.
 - Jinja2 templates + plain CSS
 - bcrypt password hashing
 - Generic OIDC authorization-code flow (authentik compatible)
-- Docker Compose with Traefik labels
+- Docker Compose (reverse proxy optional, configured via override)
 
 ## File map
 
@@ -49,34 +49,26 @@ Current released version: **v1.8.6**.
 | `Dockerfile` | Builds the image from source (used by GitHub Actions) |
 | `.github/workflows/docker-publish.yml` | Builds and publishes the image to GHCR on push/tag |
 | `requirements.txt` | Python dependencies |
-| `docker-compose.yml` | Generic Compose stack using the published GHCR image, volumes, networks; no Traefik labels |
+| `docker-compose.yml` | Environment-agnostic Compose stack using the published GHCR image and a named data volume |
 | `.env` / `.env.example` | Local secrets / tracked placeholders |
 | `README.md` | User-facing setup and feature docs |
 | `AGENT.md` | This handover guide |
 
 ## Deployment facts
 
-- Traefik is optional. The base Compose file has **no** reverse-proxy labels; add them in `docker-compose.override.yml` for your own host/cert resolver.
-- When Traefik is used: `websecure` entry point, TLS enabled, no plain HTTP router.
-- Service port: `8000`
+- Reverse proxy is optional. The base Compose file has no published ports, external networks or proxy labels.
+- For Traefik or another proxy, add networking and labels in `docker-compose.override.yml`; see `README.md` for examples.
+- Service port inside the container: `8000`.
 - Image: `ghcr.io/ivar12/docker-manager:latest`, published by GitHub Actions on push to `main` and on `v*` tags
 - GitHub repo: `ivar12/Docker-Manager` (public), remote via SSH `git@github.com:ivar12/Docker-Manager.git`
-- Networks:
-  ```yaml
-  networks:
-    internal:
-      internal: true
-    backend:
-      external: true
-  ```
-- The service attaches only to `backend`.
+- Networking: Compose's default network is used. No `backend` or `internal` network is declared.
 - Data volume: `dockermgr_data` mounted at `/app/data`.
 - Self container name: `SELF_CONTAINER=dockermgr`; the updater never updates itself.
-- Timezone: `TZ=Europe/Amsterdam` by default.
+- Timezone: `TZ` from `.env`, default `UTC`.
 
 ## Common commands
 
-From `/home/ivar/docker-manager`:
+From the repository root:
 
 ```bash
 # Validate
@@ -86,8 +78,7 @@ docker compose config --quiet
 # Build locally only when testing image changes
 docker build -t ghcr.io/ivar12/docker-manager:latest .
 
-# Run normally: pulls the published image (requires Traefik on the external backend network)
-docker network create backend   # only if missing
+# Run normally: pulls the published image
 docker compose pull
 docker compose up -d
 
@@ -98,13 +89,13 @@ docker compose down
 git log --oneline --decorate --all
 ```
 
-Local test override (kept outside the repo) was previously used at `/tmp/opencode/docker-compose.test.yml`:
+Example local override for HTTP access without a proxy (store it outside the repo, or use `docker-compose.override.yml` as documented in `README.md`):
 
 ```yaml
 services:
   dockermgr:
     ports:
-      - "127.0.0.1:18000:8000"
+      - "127.0.0.1:8080:8000"
     environment:
       SESSION_HTTPS_ONLY: "false"
 ```
@@ -116,8 +107,8 @@ docker compose -f docker-compose.yml -f /tmp/opencode/docker-compose.test.yml pu
 docker compose -f docker-compose.yml -f /tmp/opencode/docker-compose.test.yml up -d
 ```
 
-Test URL: <http://localhost:18000>  
-Default test login: `admin` / `changeme` (the shipped test hash; change it for real use).
+Test URL: <http://localhost:8080>  
+Sign in with `ADMIN_USERNAME` and the password generated from your `.env` hash.
 
 ## Auth notes
 
@@ -129,8 +120,9 @@ Default test login: `admin` / `changeme` (the shipped test hash; change it for r
   ```
 - The `.env` admin hash is restored on every restart. Changing it through the UI is temporary.
 - Users have roles `admin` or `user`. Admin role grants access to Settings.
-- OIDC is disabled by default. Set `OIDC_ENABLED=true` and the authentik values in `.env`.
-- OIDC redirect URI: `https://dockermgr.home.networktechlab.nl/auth/callback`.
+- OIDC is disabled by default. Set `OIDC_ENABLED=true` and your provider's values in `.env`.
+- `OIDC_REDIRECT_URL` has no default; set it to the public `/auth/callback` URL of your deployment.
+- Default endpoint paths are authentik-style (`/application/o/...`); set `OIDC_AUTHORIZE_URL`, `OIDC_TOKEN_URL` and `OIDC_USERINFO_URL` for other providers.
 - OIDC users are provisioned on first successful login with role `user`.
 
 ## Update behavior
@@ -192,7 +184,7 @@ docker build -t ghcr.io/ivar12/docker-manager:latest .
 With the test override running:
 
 - `/health` returns `{"ok":true}`
-- `/login` accepts `admin` / `changeme`
+- `/login` accepts `ADMIN_USERNAME` and the password from your `.env` hash
 - `/`, `/images`, `/networks`, `/schedules`, `/settings` return 200
 - Show buttons open the expected detail pages
 - Settings sidebar switches sections
@@ -206,7 +198,7 @@ With the test override running:
 - Meaningful commit messages (`feat:`, `fix:`, `refactor:`, `chore:`, `deploy:`)
 - Annotated version tags after validated changes
 - Keep the working tree clean at handover
-- Current tag history includes `v1.8.6` (generic Compose without Traefik labels, README with/without Traefik)
+- Current tag history includes `v1.8.7` (environment-agnostic Compose, config and docs)
 
 ## Historical context
 

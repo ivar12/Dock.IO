@@ -8,19 +8,11 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - dockermgr_data:/app/data
-    networks:
-      - backend
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
       interval: 30s
       timeout: 5s
       retries: 3
-
-networks:
-  internal:
-    internal: true
-  backend:
-    external: true
 
 volumes:
   dockermgr_data:

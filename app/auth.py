@@ -1,4 +1,4 @@
-"""Local password auth + generic OIDC authorization-code flow (authentik friendly)."""
+"""Local password auth + generic OIDC authorization-code flow."""
 
 from __future__ import annotations
 
@@ -15,9 +15,7 @@ from . import db
 OIDC_ENABLED = os.getenv("OIDC_ENABLED", "false").lower() in ("1", "true", "yes")
 OIDC_CLIENT_ID = os.getenv("OIDC_CLIENT_ID", "")
 OIDC_CLIENT_SECRET = os.getenv("OIDC_CLIENT_SECRET", "")
-OIDC_REDIRECT_URL = os.getenv(
-    "OIDC_REDIRECT_URL", "https://dockermgr.home.networktechlab.nl/auth/callback"
-)
+OIDC_REDIRECT_URL = os.getenv("OIDC_REDIRECT_URL", "")
 OIDC_SCOPES = os.getenv("OIDC_SCOPES", "openid profile email")
 OIDC_USER_CLAIM = os.getenv("OIDC_USER_CLAIM", "preferred_username")
 OIDC_BASE_URL = os.getenv("OIDC_BASE_URL", "").rstrip("/")
