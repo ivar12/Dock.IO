@@ -7,7 +7,7 @@ A **custom-built** Docker management web app with scheduled image updates, conta
 ![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-web%20UI-009485?logo=fastapi&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
-![Version](https://img.shields.io/badge/version-v1.8.7-brightgreen)
+![Version](https://img.shields.io/badge/version-v1.0.0-brightgreen)
 
 ## What it does
 
@@ -57,7 +57,7 @@ Create `docker-compose.override.yml` next to `docker-compose.yml`:
 services:
   dockermgr:
     ports:
-      - "127.0.0.1:8080:8000"
+      - ":8080:8000"
     environment:
       SESSION_HTTPS_ONLY: "false"
 ```
@@ -68,7 +68,7 @@ Start it:
 docker compose up -d
 ```
 
-Open <http://localhost:8080>. `SESSION_HTTPS_ONLY=false` is for local HTTP testing; keep it `true` when the app is served over HTTPS.
+Open `http://<host>:8080`. This publishes host port `8080` on all interfaces; add an IP before the colon (for example `192.168.1.10:8080:8000`) to restrict access. `SESSION_HTTPS_ONLY=false` is for local HTTP testing; keep it `true` when the app is served over HTTPS.
 
 ### With Traefik
 

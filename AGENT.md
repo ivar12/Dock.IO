@@ -8,7 +8,7 @@ This is a **custom-built Docker manager webapp**, written from scratch in this r
 
 The app manages Docker containers, pulls images, recreates containers on update, runs scheduled updates, and provides local + OIDC authentication.
 
-Current released version: **v1.8.7**.
+Current released version: **v1.0.0**.
 
 ## Golden rules
 
@@ -95,7 +95,7 @@ Example local override for HTTP access without a proxy (store it outside the rep
 services:
   dockermgr:
     ports:
-      - "127.0.0.1:8080:8000"
+      - ":8080:8000"
     environment:
       SESSION_HTTPS_ONLY: "false"
 ```
@@ -107,7 +107,7 @@ docker compose -f docker-compose.yml -f /tmp/opencode/docker-compose.test.yml pu
 docker compose -f docker-compose.yml -f /tmp/opencode/docker-compose.test.yml up -d
 ```
 
-Test URL: <http://localhost:8080>  
+Test URL: `http://<host>:8080`  
 Sign in with `ADMIN_USERNAME` and the password generated from your `.env` hash.
 
 ## Auth notes
@@ -198,7 +198,7 @@ With the test override running:
 - Meaningful commit messages (`feat:`, `fix:`, `refactor:`, `chore:`, `deploy:`)
 - Annotated version tags after validated changes
 - Keep the working tree clean at handover
-- Current tag history includes `v1.8.7` (environment-agnostic Compose, config and docs)
+- Tag history starts at `v1.0.0` (first public release)
 
 ## Historical context
 
