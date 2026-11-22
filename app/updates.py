@@ -5,7 +5,7 @@ from __future__ import annotations
 import secrets
 import threading
 
-from . import db, dockerops
+from . import db, dockerops, image_updates
 
 PHASE_LABELS = {
     "queued": "Queued",
@@ -41,6 +41,8 @@ def _execute(job_id: str, name: str, actor: str) -> tuple[str, bool, str]:
     # A successful self-update is finished by the helper in the restarted app.
     if not (is_self and ok):
         db.set_update_job(job_id, "done" if ok else "failed", msg, ok=ok, finished=True)
+        if ok:
+            image_updates.refresh(force=True)
     db.log_action(actor, "update", f"{name}: {'ok' if ok else 'failed'} - {msg}")
     return name, ok, msg
 

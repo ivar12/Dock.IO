@@ -21,6 +21,12 @@ def _short(digest: str) -> str:
     return value.replace("sha256:", "")[:12]
 
 
+def _digest(value: str) -> str:
+    """Normalise a digest from either 'sha256:...' or 'repo@sha256:...'."""
+    text = str(value or "")
+    return text.rsplit("@", 1)[-1] if "@" in text else text
+
+
 def _result(state: str, label: str, css: str, detail: str = "") -> dict:
     return {"state": state, "label": label, "css": css, "detail": detail}
 
@@ -57,8 +63,8 @@ def _check_all() -> None:
 
     for image, info in targets.items():
         try:
-            remote = dockerops.client.images.get_registry_data(image).id
-            local = info["local"]
+            remote = _digest(dockerops.client.images.get_registry_data(image).id)
+            local = {_digest(value) for value in info["local"]}
             if not local:
                 result = _result("unknown", "Unknown", "", "No local image digest to compare")
             elif remote in local:
@@ -70,7 +76,7 @@ def _check_all() -> None:
                     "update",
                     "available",
                     "update",
-                    f"local {_short(local[0])} / registry {_short(remote)}",
+                    f"local {_short(next(iter(local)))} / registry {_short(remote)}",
                 )
         except Exception as exc:
             message = str(exc).lower()
