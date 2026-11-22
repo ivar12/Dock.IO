@@ -5,11 +5,26 @@
 {% if msg %}<p class="alert ok">{{ msg }}</p>{% endif %}
 {% if error %}<p class="alert warn">{{ error }}</p>{% endif %}
 <p class="muted">System networks (<code>bridge</code>, <code>host</code>, <code>none</code>) and networks with attached containers cannot be deleted.</p>
+
+<div data-filter-scope>
+{% with search_placeholder = 'Search networks by name, ID, driver or subnet...', filters = [
+  {'key': 'type', 'label': 'Type', 'options': [
+    {'value': 'system', 'label': 'system'},
+    {'value': 'user', 'label': 'user-defined'}
+  ]},
+  {'key': 'usage', 'label': 'Usage', 'options': [
+    {'value': 'in-use', 'label': 'in use'},
+    {'value': 'unused', 'label': 'unused'}
+  ]}
+] %}{% include '_filters.html' %}{% endwith %}
+
 <table>
   <thead><tr><th>Name</th><th>ID</th><th>Driver</th><th>Subnets</th><th>Containers</th><th>Actions</th></tr></thead>
   <tbody>
   {% for network in networks %}
-    <tr>
+    {% set subnet_text = network.subnets | join(' ') %}
+    <tr data-filter-item data-type="{{ 'system' if network.system else 'user' }}" data-usage="{{ 'in-use' if network.containers else 'unused' }}"
+        data-search="{{ (network.name ~ ' ' ~ network.short_id ~ ' ' ~ network.driver ~ ' ' ~ subnet_text) | lower | e }}">
       <td><strong>{{ network.name }}</strong> {% if network.system %}<span class="tag">system</span>{% endif %}</td>
       <td class="mono">{{ network.short_id }}</td>
       <td>{{ network.driver }}</td>
@@ -32,4 +47,5 @@
   {% endfor %}
   </tbody>
 </table>
+</div>
 {% endblock %}

@@ -5,11 +5,26 @@
 {% if msg %}<p class="alert ok">{{ msg }}</p>{% endif %}
 {% if error %}<p class="alert warn">{{ error }}</p>{% endif %}
 <p class="muted">Images still used by a container cannot be deleted. The updater removes superseded images automatically after a container is recreated.</p>
+
+<div data-filter-scope>
+{% with search_placeholder = 'Search images by tag, ID or date...', filters = [
+  {'key': 'usage', 'label': 'Usage', 'options': [
+    {'value': 'in-use', 'label': 'in use'},
+    {'value': 'unused', 'label': 'unused'}
+  ]},
+  {'key': 'tagged', 'label': 'Tags', 'options': [
+    {'value': 'tagged', 'label': 'tagged'},
+    {'value': 'untagged', 'label': 'untagged'}
+  ]}
+] %}{% include '_filters.html' %}{% endwith %}
+
 <table>
   <thead><tr><th>Repository / tag</th><th>ID</th><th>Size</th><th>Created</th><th>Containers</th><th>Actions</th></tr></thead>
   <tbody>
   {% for image in images %}
-    <tr>
+    {% set tag_text = image.tags | join(' ') %}
+    <tr data-filter-item data-usage="{{ 'in-use' if image.containers else 'unused' }}" data-tagged="{{ 'tagged' if image.tags else 'untagged' }}"
+        data-search="{{ (image.short_id ~ ' ' ~ tag_text ~ ' ' ~ (image.created or '') ~ ' ' ~ (image.size | string)) | lower | e }}">
       <td>
         {% if image.tags %}
           {% for tag in image.tags %}<div class="mono">{{ tag }}</div>{% endfor %}
@@ -29,4 +44,5 @@
   {% endfor %}
   </tbody>
 </table>
+</div>
 {% endblock %}

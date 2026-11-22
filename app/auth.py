@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 import os
 import secrets
 import urllib.parse
@@ -46,19 +45,6 @@ def verify_password(password: str, hashed: str) -> bool:
         return bcrypt.checkpw(password.encode()[:72], hashed.encode())
     except (ValueError, TypeError):
         return False
-
-
-def init_local_admin() -> None:
-    username = os.getenv("ADMIN_USERNAME", "admin")
-    encoded = os.getenv("ADMIN_PASSWORD_HASH_B64", "").strip()
-    if encoded:
-        # Base64 keeps bcrypt's "$" characters away from Compose's env interpolation.
-        password_hash = base64.b64decode(encoded).decode()
-    else:
-        password_hash = os.getenv("ADMIN_PASSWORD_HASH", "").strip().strip("'\"")
-    if not password_hash:
-        raise RuntimeError("ADMIN_PASSWORD_HASH_B64 is not set in .env")
-    db.upsert_local_user(username, password_hash, role="admin")
 
 
 def check_local_login(username: str, password: str) -> bool:

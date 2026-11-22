@@ -7,7 +7,7 @@
 ![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-web%20UI-009485?logo=fastapi&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
-![Version](https://img.shields.io/badge/version-v1.0.0-brightgreen)
+![Version](https://img.shields.io/badge/version-v1.1.0-brightgreen)
 
 ## What it does
 
@@ -15,6 +15,7 @@
 - **Update safely** — pull a new image, recreate the container with its original config, restore its running state, and remove the superseded image when unused.
 - **Schedule updates** — multiple cron schedules for all containers, selected containers, or an explicit list. New/Edit forms include a date/time-style cron helper.
 - **Inspect resources** — Show pages for containers, images, networks, and schedules with configuration, state, mounts, environment, labels, and attachments.
+- **Find things fast** — every list page has a live search box plus status/usage filters.
 - **Delete safely** — unused images and networks can be removed; in-use and system resources are protected.
 - **Authenticate users** — local bcrypt admin plus generic OIDC login.
 - **Manage users** — admin-only Settings with `admin`/`user` roles, user creation/editing, and password resets.
@@ -41,11 +42,9 @@ cp .env.example .env
 Edit `.env` before starting:
 
 - Set `SESSION_SECRET` to a random value: `python3 -c "import secrets; print(secrets.token_hex(32))"`
-- Replace `ADMIN_PASSWORD_HASH_B64` with your own hash:
-  ```bash
-  python3 -c "import bcrypt,base64; print(base64.b64encode(bcrypt.hashpw(b'your-password', bcrypt.gensalt())).decode())"
-  ```
 - If you enable OIDC, set `OIDC_REDIRECT_URL` to your public `/auth/callback` URL and fill in your provider's values.
+
+No admin password hash is needed. On the first launch the app opens a **first-run setup** page where you create the administrator account from the browser; the password is bcrypt-hashed and stored in the app database. Additional users and roles are managed under **Settings → Users**.
 
 The base `docker-compose.yml` is network-agnostic: it publishes no ports and adds no reverse-proxy labels. Compose creates its own default network. Choose how you want to reach the app below.
 
@@ -120,6 +119,6 @@ docker compose up -d
 - **Containers / Images / Networks / Schedules** — use the **Show** button in each row for details.
 - **Schedules** — create, run now, pause, edit, show, or delete. Cron is 5-field; APScheduler weekdays are `0=Monday … 6=Sunday`.
 - **Settings** — admin-only, with **Overview**, **Users**, and **Security** sections. Application info appears directly under the Overview stats.
-- **Roles** — `admin` can access Settings; `user` cannot. The account in `ADMIN_USERNAME` is always an admin.
+- **Roles** — `admin` can access Settings; `user` cannot. The first account created in the web UI is an admin.
 
 For setup details, deployment notes, configuration reference, and maintainer conventions, see [`AGENT.md`](AGENT.md).

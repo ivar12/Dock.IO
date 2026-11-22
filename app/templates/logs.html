@@ -2,12 +2,17 @@
 {% block title %}Activity - Dock.IO{% endblock %}
 {% block content %}
 <h1>Activity log</h1>
+<div data-filter-scope>
+{% with search_placeholder = 'Search the activity log...' %}{% include '_filters.html' %}{% endwith %}
 <table>
   <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Detail</th></tr></thead>
   <tbody>
   {% for e in entries %}
-    <tr><td class="mono">{{ e.ts }}</td><td>{{ e.actor }}</td><td>{{ e.action }}</td><td class="mono wrap">{{ e.detail }}</td></tr>
+    <tr data-filter-item data-search="{{ (e.ts ~ ' ' ~ e.actor ~ ' ' ~ e.action ~ ' ' ~ e.detail) | lower | e }}">
+      <td class="mono">{{ e.ts }}</td><td>{{ e.actor }}</td><td>{{ e.action }}</td><td class="mono wrap">{{ e.detail }}</td>
+    </tr>
   {% endfor %}
   </tbody>
 </table>
+</div>
 {% endblock %}

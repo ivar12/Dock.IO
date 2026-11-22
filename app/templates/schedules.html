@@ -5,11 +5,22 @@
 {% if request.query_params.get('error') %}<p class="error">{{ request.query_params.get('error') }}</p>{% endif %}
 
 <div class="grid">
-  <section class="card">
+  <section class="card" data-filter-scope>
     <h2>Existing schedules</h2>
+    {% with search_placeholder = 'Search schedules by name, cron or container...', filters = [
+      {'key': 'state', 'label': 'State', 'options': [
+        {'value': 'enabled', 'label': 'enabled'},
+        {'value': 'paused', 'label': 'paused'}
+      ]},
+      {'key': 'mode', 'label': 'Mode', 'options': [
+        {'value': 'all', 'label': 'all containers'},
+        {'value': 'selected', 'label': 'selected'}
+      ]}
+    ] %}{% include '_filters.html' %}{% endwith %}
     {% if not schedules %}<p class="muted">No schedules yet.</p>{% endif %}
     {% for s in schedules %}
-    <div class="schedule">
+    <div class="schedule" data-filter-item data-state="{{ 'enabled' if s.enabled else 'paused' }}" data-mode="{{ s.mode }}"
+         data-search="{{ (s.name ~ ' ' ~ s.cron ~ ' ' ~ s.mode ~ ' ' ~ (s.containers | join(' '))) | lower | e }}">
       <div class="schedule-head">
         <strong>{{ s.name }}</strong>
         <span class="tag {{ 'yes' if s.enabled else '' }}">{{ 'enabled' if s.enabled else 'paused' }}</span>

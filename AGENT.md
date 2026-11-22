@@ -8,12 +8,12 @@ This is **Dock.IO**, a custom-built Docker management webapp written from scratc
 
 The app manages Docker containers, pulls images, recreates containers on update, runs scheduled updates, and provides local + OIDC authentication.
 
-Current released version: **v1.0.0**.
+Current released version: **v1.1.0**.
 
 ## Golden rules
 
 1. Keep secrets out of git. `.env` is gitignored; `.env.example` is tracked.
-2. Never commit `ADMIN_PASSWORD_HASH_B64`, `SESSION_SECRET`, `OIDC_CLIENT_SECRET`, tokens, or database files.
+2. Never commit `SESSION_SECRET`, `OIDC_CLIENT_SECRET`, tokens, or database files. Admin passwords are created in the web UI and stored as bcrypt hashes in the database.
 3. `/var/run/docker.sock` is mounted into the app. Treat the app as root-equivalent on the host.
 4. Keep the base Compose file environment-agnostic: no external networks, no published ports, no reverse-proxy labels. Put deployment-specific networking in `docker-compose.override.yml`.
 5. Preserve the user's UI preferences:
@@ -108,17 +108,13 @@ docker compose -f docker-compose.yml -f /tmp/opencode/docker-compose.test.yml up
 ```
 
 Test URL: `http://<host>:8080`  
-Sign in with `ADMIN_USERNAME` and the password generated from your `.env` hash.
+On a fresh database the app redirects to `/setup`; create the first admin there, then sign in with those credentials.
 
 ## Auth notes
 
-- Local admin username comes from `ADMIN_USERNAME`.
-- The password hash is stored base64-encoded in `ADMIN_PASSWORD_HASH_B64` so Compose does not mangle bcrypt's `$`.
-- Generate a new hash with:
-  ```bash
-  python3 -c "import bcrypt,base64; print(base64.b64encode(bcrypt.hashpw(b'your-password', bcrypt.gensalt())).decode())"
-  ```
-- The `.env` admin hash is restored on every restart. Changing it through the UI is temporary.
+- There is no admin account in `.env`. `ADMIN_USERNAME` / `ADMIN_PASSWORD_HASH_B64` are no longer read.
+- `/setup` creates the first admin only when the users table is empty (`db.create_initial_admin`). A middleware redirects all pages there until a user exists.
+- Passwords are hashed with bcrypt (`auth.hash_password`) and stored in the app database; they survive restarts.
 - Users have roles `admin` or `user`. Admin role grants access to Settings.
 - OIDC is disabled by default. Set `OIDC_ENABLED=true` and your provider's values in `.env`.
 - `OIDC_REDIRECT_URL` has no default; set it to the public `/auth/callback` URL of your deployment.
@@ -153,10 +149,11 @@ Sign in with `ADMIN_USERNAME` and the password generated from your `.env` hash.
   - Edit user: dedicated page for role changes and password resets.
   - Security: change own password.
 - Titles and IDs in list tables stay plain text.
+- Every list page (containers, images, networks, schedules, activity) has a live search box and optional dropdown filters. Implementation: `_filters.html` renders the controls, `static/filters.js` toggles elements marked `data-filter-item` inside a `data-filter-scope` container, using `data-search` and arbitrary `data-<filter-key>` attributes.
 
 ## Database migrations
 
-`db.init_db()` creates tables and migrates the `users` table by adding the `role` column if missing, then forces the `.env` admin to `role='admin'`.
+`db.init_db()` creates tables and migrates the `users` table by adding the `role` column if missing. It no longer creates or modifies accounts from environment variables.
 
 If adding columns, follow the same pattern: `CREATE TABLE IF NOT EXISTS` for fresh installs plus a `PRAGMA table_info` check and `ALTER TABLE` for existing installs.
 
@@ -184,8 +181,10 @@ docker build -t ghcr.io/ivar12/dock.io:latest .
 With the test override running:
 
 - `/health` returns `{"ok":true}`
-- `/login` accepts `ADMIN_USERNAME` and the password from your `.env` hash
+- On a fresh volume `/` redirects to `/setup`, and creating the first admin signs you in
+- `/login` accepts the account created in the web UI
 - `/`, `/images`, `/networks`, `/schedules`, `/settings` return 200
+- Search boxes and dropdown filters hide/show rows correctly on all list pages
 - Show buttons open the expected detail pages
 - Settings sidebar switches sections
 - Create user, Edit user, role change, password reset and delete work
@@ -198,7 +197,7 @@ With the test override running:
 - Meaningful commit messages (`feat:`, `fix:`, `refactor:`, `chore:`, `deploy:`)
 - Annotated version tags after validated changes
 - Keep the working tree clean at handover
-- Tag history starts at `v1.0.0` (first public release)
+- Tag history: `v1.0.0` (first public release), `v1.1.0` (search/filters + web UI first admin)
 
 ## Historical context
 

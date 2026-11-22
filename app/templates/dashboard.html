@@ -26,11 +26,34 @@
 <div class="alert ok">All containers are running with no configuration issues detected.</div>
 {% endif %}
 
+<div data-filter-scope>
+{% with search_placeholder = 'Search containers by name, image or status...', filters = [
+  {'key': 'status', 'label': 'Status', 'options': [
+    {'value': 'running', 'label': 'running'},
+    {'value': 'stopped', 'label': 'stopped'},
+    {'value': 'unhealthy', 'label': 'unhealthy'}
+  ]},
+  {'key': 'update', 'label': 'Auto-update', 'options': [
+    {'value': 'all', 'label': 'all schedule'},
+    {'value': 'selected', 'label': 'selected'},
+    {'value': 'opted-out', 'label': 'opted out'},
+    {'value': 'skipped', 'label': 'skipped'}
+  ]}
+] %}{% include '_filters.html' %}{% endwith %}
+
 <table>
   <thead><tr><th>Name</th><th>Image</th><th>Status</th><th>Auto-update</th><th>Actions</th></tr></thead>
   <tbody>
   {% for c in containers %}
-    <tr>
+    {% if c.health == 'unhealthy' %}{% set status_filter = 'unhealthy' %}
+    {% elif c.running %}{% set status_filter = 'running' %}
+    {% else %}{% set status_filter = 'stopped' %}{% endif %}
+    {% if c.is_self %}{% set update_filter = 'skipped' %}{% set update_text = 'skipped' %}
+    {% elif c.opted_out %}{% set update_filter = 'opted-out' %}{% set update_text = 'opted out' %}
+    {% elif c.update_label %}{% set update_filter = 'selected' %}{% set update_text = 'selected' %}
+    {% else %}{% set update_filter = 'all' %}{% set update_text = 'all schedule' %}{% endif %}
+    <tr data-filter-item data-status="{{ status_filter }}" data-update="{{ update_filter }}"
+        data-search="{{ (c.name ~ ' ' ~ (c.image or '') ~ ' ' ~ c.status ~ ' ' ~ (c.health or '') ~ ' ' ~ update_text) | lower | e }}">
       <td>
         <strong>{{ c.name }}</strong>
         {% if c.is_self %}<span class="tag">this app</span>{% endif %}
@@ -62,4 +85,5 @@
   {% endfor %}
   </tbody>
 </table>
+</div>
 {% endblock %}

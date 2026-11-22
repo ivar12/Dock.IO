@@ -59,13 +59,27 @@ def init_db() -> None:
         columns = {r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
         if "role" not in columns:
             conn.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'")
-        conn.execute(
-            "UPDATE users SET role = 'admin' WHERE username = ?",
-            (os.getenv("ADMIN_USERNAME", "admin"),),
-        )
 
 
 # --------------------------------------------------------------------------- users
+def user_count() -> int:
+    with connection() as conn:
+        return int(conn.execute("SELECT COUNT(*) FROM users").fetchone()[0])
+
+
+def create_initial_admin(username: str, password_hash: str) -> bool:
+    """Create the first admin account. Returns False if users already exist."""
+    with connection() as conn:
+        if conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]:
+            return False
+        conn.execute(
+            """INSERT INTO users (username, password_hash, is_local, role)
+               VALUES (?, ?, 1, 'admin')""",
+            (username, password_hash),
+        )
+        return True
+
+
 def upsert_local_user(username: str, password_hash: str, role: str = "user") -> None:
     if role not in ("admin", "user"):
         role = "user"

@@ -1,0 +1,14 @@
+<div class="filter-bar">
+  <input type="search" data-filter-search placeholder="{{ search_placeholder | default('Search...') }}" aria-label="Search">
+  {% for f in filters | default([]) %}
+  <select data-filter-key="{{ f.key }}" aria-label="{{ f.label }}">
+    <option value="">{{ f.label }}: all</option>
+    {% for option in f.options %}
+    <option value="{{ option.value }}">{{ option.label }}</option>
+    {% endfor %}
+  </select>
+  {% endfor %}
+  <button type="button" class="small" data-filter-clear>Clear</button>
+  <span class="filter-count muted" data-filter-count></span>
+</div>
+<p class="muted filter-empty" data-filter-empty hidden>No items match your search or filters.</p>

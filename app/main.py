@@ -19,15 +19,13 @@ SESSION_SECRET = os.getenv("SESSION_SECRET", "")
 if not SESSION_SECRET:
     raise RuntimeError("SESSION_SECRET is not set in .env")
 SESSION_HTTPS_ONLY = os.getenv("SESSION_HTTPS_ONLY", "true").lower() in ("1", "true", "yes")
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init_db()
-    auth.init_local_admin()
     scheduler.start()
-    db.log_action("system", "startup", "docker manager started")
+    db.log_action("system", "startup", "Dock.IO started")
     yield
     scheduler.stop()
 
@@ -42,6 +40,16 @@ app.add_middleware(
 )
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
+
+
+@app.middleware("http")
+async def setup_guard(request: Request, call_next):
+    """On a fresh install, send every page to the first-run admin setup."""
+    path = request.url.path
+    if path not in ("/setup", "/health") and not path.startswith("/static/"):
+        if db.user_count() == 0:
+            return RedirectResponse("/setup", status_code=302)
+    return await call_next(request)
 
 
 def _user(request: Request) -> str | None:
@@ -59,7 +67,7 @@ def _need_admin(request: Request) -> RedirectResponse | None:
         return redirect
     username = _user(request)
     row = db.get_user(username) if username else None
-    if not row or (row["role"] != "admin" and username != ADMIN_USERNAME):
+    if not row or row["role"] != "admin":
         return RedirectResponse("/?error=Admin+access+required", status_code=302)
     return None
 
@@ -68,6 +76,43 @@ def _need_admin(request: Request) -> RedirectResponse | None:
 @app.get("/health")
 def health():
     return {"ok": True}
+
+
+# ------------------------------------------------------------------------ first run
+@app.get("/setup")
+def setup_page(request: Request, error: str = ""):
+    if db.user_count():
+        return RedirectResponse("/login", status_code=302)
+    return templates.TemplateResponse(request, "setup.html", {"error": error})
+
+
+@app.post("/setup")
+def setup_submit(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    confirm_password: str = Form(...),
+):
+    if db.user_count():
+        return RedirectResponse("/login", status_code=302)
+    username = username.strip()
+    if not username or len(username) > 64:
+        return templates.TemplateResponse(
+            request, "setup.html", {"error": "Username must be 1-64 characters"}, status_code=400
+        )
+    if password != confirm_password:
+        return templates.TemplateResponse(
+            request, "setup.html", {"error": "Passwords do not match"}, status_code=400
+        )
+    if len(password) < 8:
+        return templates.TemplateResponse(
+            request, "setup.html", {"error": "Password must be at least 8 characters"}, status_code=400
+        )
+    if not db.create_initial_admin(username, auth.hash_password(password)):
+        return RedirectResponse("/login", status_code=302)
+    request.session["user"] = username
+    db.log_action(username, "first-run setup", "created the first admin account")
+    return RedirectResponse("/", status_code=303)
 
 
 @app.get("/login")
@@ -510,8 +555,7 @@ def settings_page(request: Request):
     }
 
     info = [
-        {"label": "Admin user (from .env)", "value": ADMIN_USERNAME},
-        {"label": "Local admin password source", "value": "ADMIN_PASSWORD_HASH_B64 in .env (restored on restart)"},
+        {"label": "First admin account", "value": "created in the web UI on first launch"},
         {"label": "Session cookie", "value": "HTTPS only" if SESSION_HTTPS_ONLY else "HTTP allowed (local testing)"},
         {"label": "OIDC", "value": "enabled" if auth.OIDC_ENABLED else "disabled"},
         {"label": "OIDC client ID", "value": auth.OIDC_CLIENT_ID or "-"},
@@ -534,7 +578,6 @@ def settings_page(request: Request):
             "users": users,
             "overview": overview,
             "info": info,
-            "admin_username": ADMIN_USERNAME,
             "msg": request.query_params.get("msg", ""),
             "error": request.query_params.get("error", ""),
         },
@@ -560,22 +603,15 @@ def settings_save_user(
         return _settings_redirect("error", "Password must be at least 8 characters")
     if role not in ("admin", "user"):
         role = "user"
-    if username == ADMIN_USERNAME:
-        role = "admin"
     db.upsert_local_user(username, auth.hash_password(password), role=role)
-    db.log_action(_user(request), "save user", f"local password set for {username} ({role})")
-    note = ""
-    if username == ADMIN_USERNAME:
-        note = " Note: the .env hash restores this password on restart."
-    return _settings_redirect("msg", f"User '{username}' saved.{note}")
+    db.log_action(_user(request), "create user", f"local user {username} ({role})")
+    return _settings_redirect("msg", f"User '{username}' saved")
 
 
 @app.get("/settings/users/{username}/edit")
 def settings_edit_user_page(request: Request, username: str):
     if redirect := _need_admin(request):
         return redirect
-    if username == ADMIN_USERNAME:
-        return _settings_redirect("error", "The .env admin is managed in .env")
     row = db.get_user(username)
     if not row:
         return _settings_redirect("error", "User not found")
@@ -592,7 +628,6 @@ def settings_edit_user_page(request: Request, username: str):
         {
             "user": _user(request),
             "target": target,
-            "admin_username": ADMIN_USERNAME,
             "msg": request.query_params.get("msg", ""),
             "error": request.query_params.get("error", ""),
         },
@@ -609,8 +644,6 @@ def settings_edit_user(
 ):
     if redirect := _need_admin(request):
         return redirect
-    if username == ADMIN_USERNAME:
-        return _settings_redirect("error", "The .env admin is managed in .env")
     row = db.get_user(username)
     if not row:
         return _settings_redirect("error", "User not found")
@@ -638,8 +671,6 @@ def settings_edit_user(
 def settings_set_role(request: Request, username: str, role: str = Form(...)):
     if redirect := _need_admin(request):
         return redirect
-    if username == ADMIN_USERNAME:
-        return _settings_redirect("error", "The .env admin role cannot be changed here")
     if username == _user(request):
         return _settings_redirect("error", "You cannot change your own role")
     if role not in ("admin", "user"):
@@ -654,8 +685,6 @@ def settings_set_role(request: Request, username: str, role: str = Form(...)):
 def settings_delete_user(request: Request, username: str):
     if redirect := _need_admin(request):
         return redirect
-    if username == ADMIN_USERNAME:
-        return _settings_redirect("error", "The .env admin cannot be deleted here")
     if username == _user(request):
         return _settings_redirect("error", "You cannot delete the account you are logged in with")
     if not db.delete_user(username):
@@ -685,7 +714,4 @@ def settings_change_password(
         return _settings_redirect("error", "New password must be at least 8 characters")
     db.upsert_local_user(username, auth.hash_password(new_password), role=row["role"])
     db.log_action(username, "change own password", "settings")
-    note = ""
-    if username == ADMIN_USERNAME:
-        note = " Note: the .env hash restores this password on restart."
-    return _settings_redirect("msg", f"Password changed.{note}")
+    return _settings_redirect("msg", "Password changed")

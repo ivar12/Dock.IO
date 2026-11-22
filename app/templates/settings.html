@@ -51,7 +51,6 @@
             <tr>
               <td>
                 <strong>{{ u.username }}</strong>
-                {% if u.username == admin_username %}<span class="tag">.env admin</span>{% endif %}
                 {% if u.username == user %}<span class="tag yes">you</span>{% endif %}
               </td>
               <td><span class="tag {{ 'yes' if u.role == 'admin' else '' }}">{{ u.role }}</span></td>
@@ -59,17 +58,13 @@
               <td>{{ 'yes' if u.has_password else 'no' }}</td>
               <td class="mono">{{ u.created_at }}</td>
               <td class="actions">
-                {% if u.username == admin_username %}
-                  <span class="muted">managed in .env</span>
+                <a class="button small" href="/settings/users/{{ u.username | urlencode }}/edit">Edit</a>
+                {% if u.username == user %}
+                  <span class="muted">current session</span>
                 {% else %}
-                  <a class="button small" href="/settings/users/{{ u.username | urlencode }}/edit">Edit</a>
-                  {% if u.username == user %}
-                    <span class="muted">current session</span>
-                  {% else %}
-                    <form method="post" action="/settings/users/{{ u.username | urlencode }}/delete" onsubmit="return confirm('Delete user {{ u.username }}?')">
-                      <button class="small danger">Delete</button>
-                    </form>
-                  {% endif %}
+                  <form method="post" action="/settings/users/{{ u.username | urlencode }}/delete" onsubmit="return confirm('Delete user {{ u.username }}?')">
+                    <button class="small danger">Delete</button>
+                  </form>
                 {% endif %}
               </td>
             </tr>
@@ -95,7 +90,7 @@
             <button type="button" onclick="toggleCreateUser()">Cancel</button>
           </div>
         </form>
-        <p class="muted small-text">The .env admin password is restored on restart; use <code>.env</code> for a permanent change.</p>
+        <p class="muted small-text">Passwords are hashed with bcrypt and stored in the app database. They survive restarts.</p>
       </div>
     </section>
 
