@@ -6,6 +6,10 @@
 {% if error %}<p class="alert warn">{{ error }}</p>{% endif %}
 <p class="muted">Images still used by a container cannot be deleted. The updater removes superseded images automatically after a container is recreated.</p>
 
+<div class="toolbar">
+  <form method="get" action="/images"><button class="small">Refresh list</button></form>
+</div>
+
 <div data-filter-scope>
 {% with search_placeholder = 'Search images by tag, ID or date...', filters = [
   {'key': 'usage', 'label': 'Usage', 'options': [
@@ -18,13 +22,18 @@
   ]}
 ] %}{% include '_filters.html' %}{% endwith %}
 
-<table>
-  <thead><tr><th>Repository / tag</th><th>ID</th><th>Size</th><th>Created</th><th>Containers</th><th>Actions</th></tr></thead>
+{% with form_id = 'bulk-images-form', target = '/images/bulk/delete', button_label = 'Delete selected', actions = [
+  {'value': 'delete', 'label': 'Delete'}
+] %}{% include '_bulk_bar.html' %}{% endwith %}
+
+<table class="selectable-table">
+  <thead><tr><th></th><th>Repository / tag</th><th>ID</th><th>Size</th><th>Created</th><th>Containers</th><th>Actions</th></tr></thead>
   <tbody>
   {% for image in images %}
     {% set tag_text = image.tags | join(' ') %}
     <tr data-filter-item data-usage="{{ 'in-use' if image.containers else 'unused' }}" data-tagged="{{ 'tagged' if image.tags else 'untagged' }}"
         data-search="{{ (image.short_id ~ ' ' ~ tag_text ~ ' ' ~ (image.created or '') ~ ' ' ~ (image.size | string)) | lower | e }}">
+      <td><input type="checkbox" data-bulk-item form="bulk-images-form" name="ids" value="{{ image.short_id }}" aria-label="Select image {{ image.short_id }}"></td>
       <td>
         {% if image.tags %}
           {% for tag in image.tags %}<div class="mono">{{ tag }}</div>{% endfor %}

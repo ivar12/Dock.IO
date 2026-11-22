@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth, db, dockerops, scheduler, updates, version
+from . import auth, db, dockerops, image_updates, scheduler, updates, version
 
 SESSION_SECRET = os.getenv("SESSION_SECRET", "")
 if not SESSION_SECRET:
@@ -26,6 +26,7 @@ async def lifespan(app: FastAPI):
     db.init_db()
     scheduler.start()
     version.refresh()
+    image_updates.refresh()
     db.log_action("system", "startup", f"Dock.IO {version.VERSION} started")
     yield
     scheduler.stop()
@@ -187,6 +188,29 @@ def dashboard(request: Request):
     if redirect := _need_login(request):
         return redirect
     containers = dockerops.list_containers()
+    image_summary = image_updates.summary(containers)
+    schedule_coverage = scheduler.coverage(containers)
+    for container in containers:
+        container["image_update"] = image_summary["states"].get(
+            container["name"], image_updates.UNKNOWN
+        )
+        covered = schedule_coverage[container["name"]]
+        container["schedules"] = covered["schedules"]
+        if container["is_self"]:
+            container["update_filter"] = "skipped"
+            container["update_text"] = "skipped"
+        elif container["opted_out"]:
+            container["update_filter"] = "opted-out"
+            container["update_text"] = "opted out"
+        elif not covered["scheduled"]:
+            container["update_filter"] = "no-schedule"
+            container["update_text"] = "no schedule"
+        elif "selected" in covered["modes"]:
+            container["update_filter"] = "selected"
+            container["update_text"] = ", ".join(dict.fromkeys(covered["schedules"]))
+        else:
+            container["update_filter"] = "all"
+            container["update_text"] = ", ".join(dict.fromkeys(covered["schedules"]))
 
     issues = []
     for c in containers:
@@ -207,16 +231,11 @@ def dashboard(request: Request):
         "running": sum(c["running"] for c in containers),
         "stopped": sum(not c["running"] for c in containers),
         "unhealthy": sum(c["health"] == "unhealthy" for c in containers),
-        "all_schedule": sum(
-            not c["is_self"] and not c["opted_out"] and not c["update_label"]
-            for c in containers
-        ),
-        "selected": sum(
-            1
-            for c in containers
-            if not c["is_self"] and c["update_label"] is True and not c["opted_out"]
-        ),
-        "opted_out": sum(c["opted_out"] for c in containers),
+        "scheduled": sum(c["update_filter"] in ("selected", "all") for c in containers),
+        "no_schedule": sum(c["update_filter"] == "no-schedule" for c in containers),
+        "opted_out": sum(c["update_filter"] == "opted-out" for c in containers),
+        "updates_available": image_summary["available"],
+        "checking_updates": image_summary["busy"],
         "issues": issues,
     }
 
@@ -227,9 +246,60 @@ def dashboard(request: Request):
             "user": _user(request),
             "containers": containers,
             "stats": stats,
+            "msg": request.query_params.get("msg", ""),
             "error": request.query_params.get("error", ""),
         },
     )
+
+
+# ------------------------------------------------------- container list tools
+@app.get("/containers/update-status")
+def containers_update_status(request: Request):
+    if not _user(request):
+        return {"error": "not authenticated"}, 401
+    return image_updates.summary(dockerops.list_containers())
+
+
+@app.post("/containers/check-updates")
+def containers_check_updates(request: Request):
+    if redirect := _need_login(request):
+        return redirect
+    image_updates.refresh(force=True)
+    db.log_action(_user(request), "check image updates", "all containers")
+    return RedirectResponse("/", status_code=303)
+
+
+@app.post("/containers/bulk/action")
+def bulk_container_action(
+    request: Request, action: str = Form(...), names: list[str] = Form([])
+):
+    if redirect := _need_login(request):
+        return redirect
+    actor = _user(request) or "unknown"
+    if action not in ("start", "stop", "restart", "update"):
+        return RedirectResponse("/?error=Unknown+bulk+action", status_code=303)
+
+    ok: list[str] = []
+    failed: list[str] = []
+    for name in names:
+        if action == "update":
+            if name == dockerops.SELF_NAME:
+                failed.append(f"{name}: skipped (this app)")
+                continue
+            updates.start_update(name, actor=actor)
+            ok.append(f"{name}: update started")
+            continue
+        try:
+            ok.append(dockerops.action(name, action))
+        except Exception as exc:
+            failed.append(f"{name}: {exc}")
+
+    db.log_action(actor, "bulk container action", f"{action} on {len(names)} container(s)")
+    if action == "update" and ok:
+        return RedirectResponse("/updates", status_code=303)
+    text = "; ".join(ok + failed) or "No containers selected"
+    kind = "error" if failed else "msg"
+    return RedirectResponse(f"/?{kind}={urllib.parse.quote(text)}", status_code=303)
 
 
 def _safe_next(next_url: str, fallback: str) -> str:
@@ -481,6 +551,23 @@ def image_delete(request: Request, image_id: str):
     return RedirectResponse(target, status_code=303)
 
 
+@app.post("/images/bulk/delete")
+def bulk_images_delete(request: Request, ids: list[str] = Form([])):
+    if redirect := _need_login(request):
+        return redirect
+    ok: list[str] = []
+    failed: list[str] = []
+    for image_id in ids:
+        try:
+            ok.append(dockerops.delete_image(image_id))
+        except Exception as exc:
+            failed.append(f"{image_id}: {exc}")
+    db.log_action(_user(request), "bulk delete images", ", ".join(ids) or "none")
+    text = "; ".join(ok + failed) or "No images selected"
+    kind = "error" if failed else "msg"
+    return RedirectResponse(f"/images?{kind}={urllib.parse.quote(text)}", status_code=303)
+
+
 # -------------------------------------------------------------------- networks
 @app.get("/networks")
 def networks_page(request: Request):
@@ -510,6 +597,23 @@ def network_delete(request: Request, network_id: str):
         db.log_action(_user(request), "delete network failed", str(exc))
         target = f"/networks?error={urllib.parse.quote(str(exc))}"
     return RedirectResponse(target, status_code=303)
+
+
+@app.post("/networks/bulk/delete")
+def bulk_networks_delete(request: Request, ids: list[str] = Form([])):
+    if redirect := _need_login(request):
+        return redirect
+    ok: list[str] = []
+    failed: list[str] = []
+    for network_id in ids:
+        try:
+            ok.append(dockerops.delete_network(network_id))
+        except Exception as exc:
+            failed.append(f"{network_id}: {exc}")
+    db.log_action(_user(request), "bulk delete networks", ", ".join(ids) or "none")
+    text = "; ".join(ok + failed) or "No networks selected"
+    kind = "error" if failed else "msg"
+    return RedirectResponse(f"/networks?{kind}={urllib.parse.quote(text)}", status_code=303)
 
 
 # ------------------------------------------------------------------------ detail views

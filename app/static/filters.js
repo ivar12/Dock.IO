@@ -31,6 +31,9 @@
       });
       if (counter) counter.textContent = shown + " / " + items.length;
       if (empty) empty.hidden = shown !== 0;
+      if (typeof CustomEvent === "function") {
+        scope.dispatchEvent(new CustomEvent("filter:applied"));
+      }
     }
 
     if (search) search.addEventListener("input", apply);

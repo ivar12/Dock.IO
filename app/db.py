@@ -277,6 +277,16 @@ def active_update_jobs() -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def delete_old_update_jobs(hours: int = 24) -> None:
+    with connection() as conn:
+        conn.execute(
+            """DELETE FROM update_jobs
+               WHERE finished_at IS NOT NULL
+                 AND finished_at < datetime('now', ?)""",
+            (f"-{hours} hours",),
+        )
+
+
 # ---------------------------------------------------------------------------- audit
 def log_action(actor: str, action: str, detail: str = "") -> None:
     with connection() as conn:

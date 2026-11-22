@@ -6,6 +6,10 @@
 {% if error %}<p class="alert warn">{{ error }}</p>{% endif %}
 <p class="muted">System networks (<code>bridge</code>, <code>host</code>, <code>none</code>) and networks with attached containers cannot be deleted.</p>
 
+<div class="toolbar">
+  <form method="get" action="/networks"><button class="small">Refresh list</button></form>
+</div>
+
 <div data-filter-scope>
 {% with search_placeholder = 'Search networks by name, ID, driver or subnet...', filters = [
   {'key': 'type', 'label': 'Type', 'options': [
@@ -18,13 +22,18 @@
   ]}
 ] %}{% include '_filters.html' %}{% endwith %}
 
-<table>
-  <thead><tr><th>Name</th><th>ID</th><th>Driver</th><th>Subnets</th><th>Containers</th><th>Actions</th></tr></thead>
+{% with form_id = 'bulk-networks-form', target = '/networks/bulk/delete', button_label = 'Delete selected', actions = [
+  {'value': 'delete', 'label': 'Delete'}
+] %}{% include '_bulk_bar.html' %}{% endwith %}
+
+<table class="selectable-table">
+  <thead><tr><th></th><th>Name</th><th>ID</th><th>Driver</th><th>Subnets</th><th>Containers</th><th>Actions</th></tr></thead>
   <tbody>
   {% for network in networks %}
     {% set subnet_text = network.subnets | join(' ') %}
     <tr data-filter-item data-type="{{ 'system' if network.system else 'user' }}" data-usage="{{ 'in-use' if network.containers else 'unused' }}"
         data-search="{{ (network.name ~ ' ' ~ network.short_id ~ ' ' ~ network.driver ~ ' ' ~ subnet_text) | lower | e }}">
+      <td><input type="checkbox" data-bulk-item form="bulk-networks-form" name="ids" value="{{ network.short_id }}" aria-label="Select network {{ network.name }}"></td>
       <td><strong>{{ network.name }}</strong> {% if network.system %}<span class="tag">system</span>{% endif %}</td>
       <td class="mono">{{ network.short_id }}</td>
       <td>{{ network.driver }}</td>

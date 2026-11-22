@@ -6,6 +6,7 @@
   if (!tbody) return;
 
   var counter = document.getElementById("update-active-count");
+  var refresh = document.getElementById("update-refresh");
   var intervalMs = 2000;
 
   function esc(value) {
@@ -41,7 +42,7 @@
     }
     var jobs = data.jobs || [];
     if (!jobs.length) {
-      tbody.innerHTML = '<tr><td colspan="6" class="muted">No updates have run yet.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="muted">No updates are running.</td></tr>';
       return;
     }
     tbody.innerHTML = jobs.map(row).join("");
@@ -65,6 +66,7 @@
       });
   }
 
+  if (refresh) refresh.addEventListener("click", load);
   load();
   setInterval(load, intervalMs);
 })();

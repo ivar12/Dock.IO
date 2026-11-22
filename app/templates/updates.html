@@ -24,12 +24,15 @@
 
   <section class="card">
     <h2>Live update progress <span class="tag" id="update-active-count">0 active</span></h2>
-    <p class="muted small-text">Updates started from Containers or by a schedule appear here. This list refreshes automatically.</p>
+    <p class="muted small-text">Updates started from Containers or by a schedule appear here while running. Finished updates leave the list automatically.</p>
+    <div class="toolbar">
+      <button type="button" class="small" id="update-refresh">Refresh now</button>
+    </div>
     <div id="update-progress-list">
       <table>
         <thead><tr><th>Container</th><th>Phase</th><th>Progress</th><th>Detail</th><th>Started</th><th>Actor</th></tr></thead>
         <tbody id="update-rows">
-          <tr><td colspan="6" class="muted">No updates have run yet.</td></tr>
+          <tr><td colspan="6" class="muted">No updates are running.</td></tr>
         </tbody>
       </table>
     </div>

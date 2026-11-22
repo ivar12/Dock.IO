@@ -37,9 +37,12 @@ def list_containers() -> list[dict]:
         configured_image = (attrs.get("Config") or {}).get("Image", "")
 
         image = ""
+        repo_digests = []
         try:
-            if c.image and c.image.tags:
-                image = c.image.tags[0]
+            if c.image:
+                repo_digests = (c.image.attrs or {}).get("RepoDigests") or []
+                if c.image.tags:
+                    image = c.image.tags[0]
         except Exception:
             pass
         if not image:
@@ -56,6 +59,8 @@ def list_containers() -> list[dict]:
                 "id": c.id[:12],
                 "name": c.name,
                 "image": image,
+                "configured_image": configured_image,
+                "repo_digests": repo_digests,
                 "image_missing": not bool(image),
                 "status": c.status,
                 "running": bool(state.get("Running")),
@@ -104,6 +109,19 @@ def _report(progress, phase: str, detail: str = "") -> None:
         progress(phase, detail)
 
 
+def _short_id(image_id: str) -> str:
+    return str(image_id or "").replace("sha256:", "")[:12]
+
+
+def _image_users(image_id: str) -> list[str]:
+    """Containers actually created from this exact image (not its descendants)."""
+    users = []
+    for container in client.containers.list(all=True):
+        if ((container.attrs or {}).get("Image") or "") == image_id:
+            users.append(container.name)
+    return sorted(users)
+
+
 def _pull(image: str, progress=None) -> tuple[bool, str]:
     repo, tag = _split_image(image)
     last_line = ""
@@ -132,24 +150,32 @@ def _supported_kwargs(func, kwargs: dict) -> dict:
     return {k: v for k, v in kwargs.items() if k in params}
 
 
-def _cleanup_old_image(old_image_id: str, container_name: str) -> str:
-    """Remove the superseded image if nothing else uses it."""
+def _cleanup_old_image(old_image_id: str, container_name: str, new_image_id: str = "") -> str:
+    """Remove the superseded image once the container is known to use the new one."""
     if not old_image_id:
         return ""
     try:
-        new_info = api.inspect_container(container_name)
-        if new_info.get("Image") == old_image_id:
-            return "old image unchanged"
-    except Exception:
-        return "could not verify new image"
-    try:
-        users = api.containers(all=True, filters={"ancestor": old_image_id})
-        if users:
-            return f"old image kept ({len(users)} container(s) still use it)"
-        api.remove_image(old_image_id, force=False)
-        return f"old image {old_image_id[:12]} removed"
+        current = (api.inspect_container(container_name) or {}).get("Image", "")
     except Exception as exc:
-        return f"old image cleanup skipped: {exc}"
+        return f"could not verify new image: {exc}"
+    if new_image_id and current != new_image_id:
+        return f"old image kept: container uses {_short_id(current)}, not pulled {_short_id(new_image_id)}"
+    if current == old_image_id:
+        return "old image unchanged (no newer image was pulled)"
+
+    users = _image_users(old_image_id)
+    if users:
+        return f"old image kept (still in use by: {', '.join(users)})"
+
+    # force=True also drops stale tags/layer references left by an earlier pull.
+    for force in (False, True):
+        try:
+            api.remove_image(old_image_id, force=force)
+            return f"old image {_short_id(old_image_id)} removed"
+        except Exception as exc:
+            if force:
+                return f"old image cleanup skipped: {exc}"
+    return ""
 
 
 def update_container(name: str, progress=None) -> tuple[bool, str]:
@@ -172,6 +198,13 @@ def update_container(name: str, progress=None) -> tuple[bool, str]:
     ok, pull_msg = _pull(image, progress=progress)
     if not ok:
         return False, f"{name}: {pull_msg}"
+
+    try:
+        new_image_id = (api.inspect_image(image) or {}).get("Id", "")
+    except Exception as exc:
+        return False, f"{name}: cannot inspect pulled image: {exc}"
+    if new_image_id:
+        _report(progress, "pulling", f"Using image {_short_id(new_image_id)}")
 
     state = info.get("State") or {}
     was_running = bool(state.get("Running"))
@@ -228,9 +261,19 @@ def update_container(name: str, progress=None) -> tuple[bool, str]:
     except Exception as exc:
         return False, f"{name}: recreate failed: {exc}"
 
-    _report(progress, "cleanup", "Removing superseded image if unused")
-    cleanup = _cleanup_old_image(old_image_id, name)
-    detail = f"{name}: updated ({pull_msg})"
+    try:
+        current_image_id = (api.inspect_container(name) or {}).get("Image", "")
+    except Exception as exc:
+        return False, f"{name}: cannot verify new container image: {exc}"
+    if new_image_id and current_image_id != new_image_id:
+        return False, (
+            f"{name}: container uses {_short_id(current_image_id)} "
+            f"instead of pulled image {_short_id(new_image_id)}"
+        )
+
+    _report(progress, "cleanup", "Switching to the pulled image and removing the old image")
+    cleanup = _cleanup_old_image(old_image_id, name, new_image_id)
+    detail = f"{name}: updated to image {_short_id(current_image_id or new_image_id)} ({pull_msg})"
     if cleanup:
         detail += f"; {cleanup}"
     return True, detail
@@ -248,7 +291,10 @@ def select_targets(mode: str, explicit: list[str] | None = None) -> list[str]:
     else:
         names = [c["name"] for c in containers if not c["opted_out"]]
 
-    return [n for n in names if n != SELF_NAME and by_name[n]["running"]]
+    return [
+        n for n in names
+        if n != SELF_NAME and by_name[n]["running"] and not by_name[n]["opted_out"]
+    ]
 
 
 def apply_updates(

@@ -1,0 +1,11 @@
+<div class="bulk-bar" data-bulk-form="{{ form_id }}">
+  <label class="check"><input type="checkbox" data-select-all> Select all</label>
+  <select data-bulk-action name="action" form="{{ form_id }}" aria-label="Bulk action">
+    {% for option in actions %}
+    <option value="{{ option.value }}">{{ option.label }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" form="{{ form_id }}" class="small primary" data-bulk-submit disabled>{{ button_label | default('Apply') }}</button>
+  <span class="muted small-text" data-bulk-count>0 selected</span>
+</div>
+<form id="{{ form_id }}" method="post" action="{{ target }}"></form>

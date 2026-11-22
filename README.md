@@ -12,10 +12,14 @@
 ## What it does
 
 - **Manage containers** — start, stop, restart, and update them from the browser.
-- **Update safely** — pull a new image, recreate the container with its original config, restore its running state, and remove the superseded image when unused.
-- **See update progress** — manual and scheduled updates are tracked phase by phase on the **Updates** page, with live auto-refresh.
+- **Update safely** — pull a new image, verify the recreated container uses that exact image, restore its running state, and remove the superseded image when no other container needs it.
+- **See update progress** — manual and scheduled updates are tracked phase by phase on the **Updates** page; finished jobs leave the live list.
+- **Check image freshness** — each container shows up-to-date / update-available labels, and the container stats show how many updates are available. Use **Check image updates** to refresh the digest comparison.
+- **Bulk actions** — select multiple containers to start/stop/restart/update, or multiple images/networks to delete at once.
+- **Light and dark mode** — switch from the header; the choice is remembered in the browser.
 - **Spot new releases** — the running version appears beside the Dock.IO title, and an update-available badge links to the latest GitHub release.
-- **Schedule updates** — multiple cron schedules for all containers, selected containers, or an explicit list. New/Edit forms include a date/time-style cron helper.
+- **Schedule updates** — multiple cron schedules for all containers, selected containers, or an explicit list. Schedules can be created and edited, and the New/Edit forms include a date/time-style cron helper.
+- **Clear schedule status** — the container list shows `no schedule` when no enabled schedule would update a container; otherwise the label shows the name(s) of the schedules that cover it, for example `weekly`.
 - **Inspect resources** — Show pages for containers, images, networks, and schedules with configuration, state, mounts, environment, labels, and attachments.
 - **Find things fast** — every list page has a live search box plus status/usage filters.
 - **Delete safely** — unused images and networks can be removed; in-use and system resources are protected.
@@ -119,9 +123,27 @@ docker compose up -d
 ## Using it
 
 - **Containers / Images / Networks / Schedules** — use the **Show** button in each row for details.
+- **Bulk actions** — tick the checkboxes in Containers, Images or Networks, choose an action in the bar above the table, then apply it.
 - **Updates** — watch live container update progress, see the running/latest Dock.IO version, and check GitHub for a new release.
-- **Schedules** — create, run now, pause, edit, show, or delete. Cron is 5-field; APScheduler weekdays are `0=Monday … 6=Sunday`.
+- **Schedules** — create, run now, pause, edit, show, or delete from the list or detail page. Cron is 5-field; APScheduler weekdays are `0=Monday … 6=Sunday`.
 - **Settings** — admin-only, with **Overview**, **Users**, and **Security** sections. Application info appears directly under the Overview stats.
 - **Roles** — `admin` can access Settings; `user` cannot. The first account created in the web UI is an admin.
 
-For setup details, deployment notes, configuration reference, and maintainer conventions, see [`AGENT.md`](AGENT.md).
+### Container update labels
+
+Set these as Docker labels on the containers you want to control (under `labels:` in your Compose service), then **recreate the container** — Dock.IO reads them from the container config:
+
+```yaml
+services:
+  myservice:
+    labels:
+      - dockio.update=true
+```
+
+| Label | Effect |
+| --- | --- |
+| `dockio.update=true` | Includes the container in `selected`-mode schedules |
+| `dockio.update=false` | Opts the container out: no schedule updates it; counted in the **opted out** stat |
+| no label | Eligible for `all`-mode schedules |
+
+Opted-out containers can still be updated manually with **Update now**. Setting an invalid value (anything other than `true`/`false`/`yes`/`no`/`1`/`0`/`on`/`off`) is reported as an issue on the container page.

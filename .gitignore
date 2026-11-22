@@ -6,3 +6,4 @@ app/data/
 .venv/
 venv/
 .DS_Store
+AGENT.md

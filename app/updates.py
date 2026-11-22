@@ -60,16 +60,14 @@ def run_sequence(names: list[str], actor: str) -> list[tuple[str, bool, str]]:
 
 
 def status() -> dict:
-    """Snapshot for the live progress page."""
-    jobs = db.list_update_jobs(limit=30)
+    """Snapshot of currently running updates (finished jobs leave the list)."""
+    db.delete_old_update_jobs()
+    jobs = db.active_update_jobs()
     for job in jobs:
         phase = job["phase"]
         job["label"] = PHASE_LABELS.get(phase, phase)
-        job["active"] = job["finished_at"] is None
-        if phase in ("done", "failed"):
-            job["step"] = len(WORK_PHASES)
-            job["percent"] = 100
-        elif phase in WORK_PHASES:
+        job["active"] = True
+        if phase in WORK_PHASES:
             job["step"] = WORK_PHASES.index(phase) + 1
             job["percent"] = round(100 * job["step"] / len(WORK_PHASES))
         else:
@@ -77,6 +75,6 @@ def status() -> dict:
             job["percent"] = 0
     return {
         "jobs": jobs,
-        "active": [j for j in jobs if j["active"]],
+        "active": jobs,
         "total_steps": len(WORK_PHASES),
     }

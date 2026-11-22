@@ -2,17 +2,35 @@
 {% block title %}Containers - Dock.IO{% endblock %}
 {% block content %}
 <h1>Containers</h1>
+{% if msg %}<p class="alert ok">{{ msg }}</p>{% endif %}
 {% if error %}<p class="alert warn">{{ error }}</p>{% endif %}
 <p class="muted">Updates recreate the container with its original config after pulling the newest image. Label a container <code>dockio.update=true</code> to include it in “selected” schedules.</p>
 
-<div class="stats">
-  <div class="stat"><span class="num">{{ stats.total }}</span><span class="label">containers</span></div>
-  <div class="stat ok"><span class="num">{{ stats.running }}</span><span class="label">running</span></div>
-  <div class="stat {{ 'warn' if stats.stopped else '' }}"><span class="num">{{ stats.stopped }}</span><span class="label">stopped</span></div>
-  <div class="stat {{ 'warn' if stats.unhealthy else '' }}"><span class="num">{{ stats.unhealthy }}</span><span class="label">unhealthy</span></div>
-  <div class="stat"><span class="num">{{ stats.all_schedule }}</span><span class="label">all schedule</span></div>
-  <div class="stat"><span class="num">{{ stats.selected }}</span><span class="label">selected</span></div>
-  <div class="stat"><span class="num">{{ stats.opted_out }}</span><span class="label">opted out</span></div>
+<div class="toolbar">
+  <form method="get" action="/"><button class="small">Refresh list</button></form>
+  <form method="post" action="/containers/check-updates"><button class="small primary">Check image updates</button></form>
+  <span class="muted small-text" id="updates-check-state">{{ 'checking...' if stats.checking_updates else 'checked' }}</span>
+</div>
+
+<div class="stat-groups">
+  <fieldset class="stat-group">
+    <legend>Containers</legend>
+    <div class="stats">
+      <div class="stat"><span class="num">{{ stats.total }}</span><span class="label">containers</span></div>
+      <div class="stat ok"><span class="num">{{ stats.running }}</span><span class="label">running</span></div>
+      <div class="stat {{ 'warn' if stats.stopped else '' }}"><span class="num">{{ stats.stopped }}</span><span class="label">stopped</span></div>
+      <div class="stat {{ 'warn' if stats.unhealthy else '' }}"><span class="num">{{ stats.unhealthy }}</span><span class="label">unhealthy</span></div>
+    </div>
+  </fieldset>
+  <fieldset class="stat-group">
+    <legend>Updates</legend>
+    <div class="stats">
+      <div class="stat {{ 'warn' if stats.updates_available else '' }}" id="updates-available-stat"><span class="num" id="updates-available-count">{{ stats.updates_available }}</span><span class="label">updates available</span></div>
+      <div class="stat ok"><span class="num">{{ stats.scheduled }}</span><span class="label">scheduled</span></div>
+      <div class="stat {{ 'warn' if stats.no_schedule else '' }}"><span class="num">{{ stats.no_schedule }}</span><span class="label">no schedule</span></div>
+      <div class="stat"><span class="num">{{ stats.opted_out }}</span><span class="label">opted out</span></div>
+    </div>
+  </fieldset>
 </div>
 
 {% if stats.issues %}
@@ -27,7 +45,7 @@
 {% endif %}
 
 <div data-filter-scope>
-{% with search_placeholder = 'Search containers by name, image or status...', filters = [
+{% with search_placeholder = 'Search containers by name, image, status or update state...', filters = [
   {'key': 'status', 'label': 'Status', 'options': [
     {'value': 'running', 'label': 'running'},
     {'value': 'stopped', 'label': 'stopped'},
@@ -37,23 +55,34 @@
     {'value': 'all', 'label': 'all schedule'},
     {'value': 'selected', 'label': 'selected'},
     {'value': 'opted-out', 'label': 'opted out'},
+    {'value': 'no-schedule', 'label': 'no schedule'},
     {'value': 'skipped', 'label': 'skipped'}
+  ]},
+  {'key': 'image-update', 'label': 'Image update', 'options': [
+    {'value': 'update', 'label': 'update available'},
+    {'value': 'up-to-date', 'label': 'up to date'},
+    {'value': 'unknown', 'label': 'unknown'}
   ]}
 ] %}{% include '_filters.html' %}{% endwith %}
 
-<table>
-  <thead><tr><th>Name</th><th>Image</th><th>Status</th><th>Auto-update</th><th>Actions</th></tr></thead>
+{% with form_id = 'bulk-containers-form', target = '/containers/bulk/action', button_label = 'Apply to containers', actions = [
+  {'value': 'start', 'label': 'Start'},
+  {'value': 'stop', 'label': 'Stop'},
+  {'value': 'restart', 'label': 'Restart'},
+  {'value': 'update', 'label': 'Update now'}
+] %}{% include '_bulk_bar.html' %}{% endwith %}
+
+<table class="selectable-table">
+  <thead><tr><th></th><th>Name</th><th>Image</th><th>Status</th><th>Image update</th><th>Auto-update</th><th>Actions</th></tr></thead>
   <tbody>
   {% for c in containers %}
     {% if c.health == 'unhealthy' %}{% set status_filter = 'unhealthy' %}
     {% elif c.running %}{% set status_filter = 'running' %}
     {% else %}{% set status_filter = 'stopped' %}{% endif %}
-    {% if c.is_self %}{% set update_filter = 'skipped' %}{% set update_text = 'skipped' %}
-    {% elif c.opted_out %}{% set update_filter = 'opted-out' %}{% set update_text = 'opted out' %}
-    {% elif c.update_label %}{% set update_filter = 'selected' %}{% set update_text = 'selected' %}
-    {% else %}{% set update_filter = 'all' %}{% set update_text = 'all schedule' %}{% endif %}
-    <tr data-filter-item data-status="{{ status_filter }}" data-update="{{ update_filter }}"
-        data-search="{{ (c.name ~ ' ' ~ (c.image or '') ~ ' ' ~ c.status ~ ' ' ~ (c.health or '') ~ ' ' ~ update_text) | lower | e }}">
+    <tr data-filter-item data-status="{{ status_filter }}" data-update="{{ c.update_filter }}"
+        data-image-update="{{ c.image_update.state }}"
+        data-search="{{ (c.name ~ ' ' ~ (c.image or '') ~ ' ' ~ c.status ~ ' ' ~ (c.health or '') ~ ' ' ~ c.update_text ~ ' ' ~ c.image_update.label) | lower | e }}">
+      <td><input type="checkbox" data-bulk-item form="bulk-containers-form" name="names" value="{{ c.name }}" aria-label="Select {{ c.name }}"></td>
       <td>
         <strong>{{ c.name }}</strong>
         {% if c.is_self %}<span class="tag">this app</span>{% endif %}
@@ -64,10 +93,13 @@
         {% if c.health %}<span class="tag {{ 'no' if c.health == 'unhealthy' else '' }}">{{ c.health }}</span>{% endif %}
       </td>
       <td>
-        {% if c.is_self %}<span class="tag">skipped</span>
-        {% elif c.opted_out %}<span class="tag">opted out</span>
-        {% elif c.update_label %}<span class="tag yes">selected</span>
-        {% else %}<span class="tag">all schedule</span>{% endif %}
+        <span class="tag {{ c.image_update.css }}" data-container-update="{{ c.name }}" title="{{ c.image_update.detail }}">{{ c.image_update.label }}</span>
+      </td>
+      <td>
+        {% if c.schedules %}{% set schedule_tip = 'Schedules: ' ~ (c.schedules | join(', ')) %}
+        {% elif c.update_filter == 'no-schedule' %}{% set schedule_tip = 'No enabled schedule targets this container' %}
+        {% else %}{% set schedule_tip = c.update_text %}{% endif %}
+        <span class="tag {{ 'yes' if c.update_filter == 'selected' else ('update' if c.update_filter == 'no-schedule' else '') }}" title="{{ schedule_tip }}">{{ c.update_text }}</span>
       </td>
       <td class="actions">
         <a class="button small" href="/container/{{ c.name }}">Show</a>

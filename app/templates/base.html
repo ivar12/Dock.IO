@@ -4,14 +4,30 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Dock.IO{% endblock %}</title>
+  <script>
+    (function () {
+      var theme = "dark";
+      try {
+        theme = localStorage.getItem("dockio-theme") || "";
+        if (!theme) theme = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      } catch (error) {
+        theme = "dark";
+      }
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+  </script>
   <link rel="stylesheet" href="/static/style.css">
   <script src="/static/filters.js" defer></script>
+  <script src="/static/bulk.js" defer></script>
+  <script src="/static/theme.js" defer></script>
+  <script src="/static/container-updates.js" defer></script>
 </head>
 <body>
 <header>
   <a class="brand" href="/">Dock.IO <span class="version">v{{ app_version }}</span></a>
   {% set release = release_info() %}
   {% if release.available %}<a class="update-available" href="{{ release.url or '/updates' }}" title="A newer Dock.IO release is available">Update available: v{{ release.latest }}</a>{% endif %}
+  <button type="button" id="theme-toggle" class="small theme-toggle">🌙 Dark</button>
   {% if user %}
   <nav>
     <a href="/">Containers</a>
