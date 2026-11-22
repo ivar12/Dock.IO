@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ schedule.name }} - Docker Manager{% endblock %}
+{% block title %}{{ schedule.name }} - Dock.IO{% endblock %}
 {% block content %}
 <p class="muted"><a href="/schedules">← Schedules</a></p>
 <h1>{{ schedule.name }}</h1>
@@ -21,7 +21,7 @@
     <tr><th>Created</th><td class="mono">{{ schedule.created_at }}</td></tr>
     <tr><th>Containers</th><td>
       {% if schedule.containers %}{{ schedule.containers | join(', ') }}
-      {% elif schedule.mode == 'selected' %}Containers labelled <code>dockermgr.update=true</code>
+      {% elif schedule.mode == 'selected' %}Containers labelled <code>dockio.update=true</code>
       {% else %}All containers (except opted out){% endif %}
     </td></tr>
   </table>

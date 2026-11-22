@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Schedules - Docker Manager{% endblock %}
+{% block title %}Schedules - Dock.IO{% endblock %}
 {% block content %}
 <h1>Update schedules</h1>
 {% if request.query_params.get('error') %}<p class="error">{{ request.query_params.get('error') }}</p>{% endif %}
@@ -18,7 +18,7 @@
       <div class="muted small-text">
         {% if s.containers %}Containers:
           {{ s.containers | join(', ') }}
-        {% elif s.mode == 'selected' %}Containers labelled <code>dockermgr.update=true</code>
+        {% elif s.mode == 'selected' %}Containers labelled <code>dockio.update=true</code>
         {% else %}All containers (except opted out){% endif %}
       </div>
       <div class="actions">

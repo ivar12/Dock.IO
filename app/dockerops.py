@@ -10,9 +10,9 @@ import docker
 client = docker.from_env()
 api = client.api
 
-SELF_NAME = os.getenv("SELF_CONTAINER", "dockermgr")
+SELF_NAME = os.getenv("SELF_CONTAINER", "dockio")
 OPT_OUT_LABELS = (
-    "dockermgr.update",
+    "dockio.update",
     "com.centurylinklabs.watchtower.enable",
 )
 
@@ -45,7 +45,7 @@ def list_containers() -> list[dict]:
         if not image:
             image = configured_image
 
-        raw_update_label = labels.get("dockermgr.update")
+        raw_update_label = labels.get("dockio.update")
         invalid_label = (
             raw_update_label is not None
             and str(raw_update_label).lower() not in _valid_label_values()
@@ -61,7 +61,7 @@ def list_containers() -> list[dict]:
                 "running": bool(state.get("Running")),
                 "health": (state.get("Health") or {}).get("Status"),
                 "labels": labels,
-                "update_label": _bool_label(labels, "dockermgr.update"),
+                "update_label": _bool_label(labels, "dockio.update"),
                 "invalid_update_label": invalid_label,
                 "opted_out": any(_bool_label(labels, k) is False for k in OPT_OUT_LABELS),
                 "is_self": c.name == SELF_NAME,

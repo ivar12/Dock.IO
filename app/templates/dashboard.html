@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Containers - Docker Manager{% endblock %}
+{% block title %}Containers - Dock.IO{% endblock %}
 {% block content %}
 <h1>Containers</h1>
 {% if error %}<p class="alert warn">{{ error }}</p>{% endif %}
-<p class="muted">Updates recreate the container with its original config after pulling the newest image. Label a container <code>dockermgr.update=true</code> to include it in “selected” schedules.</p>
+<p class="muted">Updates recreate the container with its original config after pulling the newest image. Label a container <code>dockio.update=true</code> to include it in “selected” schedules.</p>
 
 <div class="stats">
   <div class="stat"><span class="num">{{ stats.total }}</span><span class="label">containers</span></div>

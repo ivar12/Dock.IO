@@ -1,6 +1,6 @@
-# Docker Manager
+# Dock.IO
 
-A **custom-built** Docker management web app with scheduled image updates, container/image/network inspection, user management, and OpenID Connect support.
+**Dock.IO** is a custom-built Docker management web app with scheduled image updates, container/image/network inspection, user management, and OpenID Connect support.
 
 > This project was written from scratch. It is intentionally **not** Portainer, Watchtower, or a repackaged off-the-shelf tool.
 
@@ -25,15 +25,15 @@ A **custom-built** Docker management web app with scheduled image updates, conta
 - Docker Engine with Compose v2
 - A reverse proxy is optional; the app works on a local port without one
 
-The app image is published to `ghcr.io/ivar12/docker-manager:latest` by GitHub Actions. No local build is needed.
+The app image is published to `ghcr.io/ivar12/dock.io:latest` by GitHub Actions. No local build is needed.
 
 ## Run it
 
 Common setup:
 
 ```bash
-git clone https://github.com/ivar12/Docker-Manager.git
-cd Docker-Manager
+git clone https://github.com/ivar12/Dock.IO.git
+cd Dock.IO
 
 cp .env.example .env
 ```
@@ -55,7 +55,7 @@ Create `docker-compose.override.yml` next to `docker-compose.yml`:
 
 ```yaml
 services:
-  dockermgr:
+  dockio:
     ports:
       - ":8080:8000"
     environment:
@@ -82,17 +82,17 @@ Create `docker-compose.override.yml`:
 
 ```yaml
 services:
-  dockermgr:
+  dockio:
     networks:
       - proxy
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy"
-      - "traefik.http.routers.dockermgr.rule=Host(`dockermgr.example.com`)"
-      - "traefik.http.routers.dockermgr.entrypoints=websecure"
-      - "traefik.http.routers.dockermgr.tls=true"
-      - "traefik.http.routers.dockermgr.tls.certresolver=myresolver"
-      - "traefik.http.services.dockermgr.loadbalancer.server.port=8000"
+      - "traefik.http.routers.dockio.rule=Host(`dockio.example.com`)"
+      - "traefik.http.routers.dockio.entrypoints=websecure"
+      - "traefik.http.routers.dockio.tls=true"
+      - "traefik.http.routers.dockio.tls.certresolver=myresolver"
+      - "traefik.http.services.dockio.loadbalancer.server.port=8000"
 
 networks:
   proxy:
@@ -105,7 +105,7 @@ Replace the host, network name, entry point and cert resolver with values from y
 docker compose up -d
 ```
 
-Open `https://dockermgr.example.com`. For another reverse proxy, either publish a local port as above or attach the container to your proxy's network.
+Open `https://dockio.example.com`. For another reverse proxy, either publish a local port as above or attach the container to your proxy's network.
 
 To update later:
 

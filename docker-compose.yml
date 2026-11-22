@@ -1,13 +1,13 @@
 services:
-  dockermgr:
-    image: ghcr.io/ivar12/docker-manager:latest
-    container_name: dockermgr
+  dockio:
+    image: ghcr.io/ivar12/dock.io:latest
+    container_name: dockio
     restart: unless-stopped
     env_file:
       - .env
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - dockermgr_data:/app/data
+      - dockio_data:/app/data
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
       interval: 30s
@@ -15,4 +15,4 @@ services:
       retries: 3
 
 volumes:
-  dockermgr_data:
+  dockio_data:

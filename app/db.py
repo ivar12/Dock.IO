@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 DATA_DIR = Path(os.getenv("DATA_DIR", "/app/data"))
-DB_PATH = DATA_DIR / "dockermgr.db"
+DB_PATH = DATA_DIR / "dockio.db"
 
 
 @contextmanager

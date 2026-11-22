@@ -19,7 +19,7 @@ OIDC_REDIRECT_URL = os.getenv("OIDC_REDIRECT_URL", "")
 OIDC_SCOPES = os.getenv("OIDC_SCOPES", "openid profile email")
 OIDC_USER_CLAIM = os.getenv("OIDC_USER_CLAIM", "preferred_username")
 OIDC_BASE_URL = os.getenv("OIDC_BASE_URL", "").rstrip("/")
-OIDC_SLUG = os.getenv("OIDC_SLUG", "dockermgr")
+OIDC_SLUG = os.getenv("OIDC_SLUG", "dockio")
 
 
 def _oidc_endpoint(env_name: str, default_path: str) -> str:

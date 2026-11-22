@@ -4,7 +4,7 @@ This file is the handover guide for AI agents and future maintainers working in 
 
 ## Project identity
 
-This is a **custom-built Docker manager webapp**, written from scratch in this repo. It is **not** Portainer, Watchtower, or a repackaged off-the-shelf product. Do not suggest or revert to those; the user explicitly wanted a custom application.
+This is **Dock.IO**, a custom-built Docker management webapp written from scratch in this repo. It is **not** Portainer, Watchtower, or a repackaged off-the-shelf product. Do not suggest or revert to those; the user explicitly wanted a custom application.
 
 The app manages Docker containers, pulls images, recreates containers on update, runs scheduled updates, and provides local + OIDC authentication.
 
@@ -32,7 +32,7 @@ Current released version: **v1.0.0**.
 - APScheduler for cron update jobs
 - Jinja2 templates + plain CSS
 - bcrypt password hashing
-- Generic OIDC authorization-code flow (authentik compatible)
+- Generic OIDC authorization-code flow
 - Docker Compose (reverse proxy optional, configured via override)
 
 ## File map
@@ -59,11 +59,11 @@ Current released version: **v1.0.0**.
 - Reverse proxy is optional. The base Compose file has no published ports, external networks or proxy labels.
 - For Traefik or another proxy, add networking and labels in `docker-compose.override.yml`; see `README.md` for examples.
 - Service port inside the container: `8000`.
-- Image: `ghcr.io/ivar12/docker-manager:latest`, published by GitHub Actions on push to `main` and on `v*` tags
-- GitHub repo: `ivar12/Docker-Manager` (public), remote via SSH `git@github.com:ivar12/Docker-Manager.git`
+- Image: `ghcr.io/ivar12/dock.io:latest`, published by GitHub Actions on push to `main` and on `v*` tags
+- GitHub repo: `ivar12/Dock.IO` (public), remote via SSH `git@github.com:ivar12/Dock.IO.git`
 - Networking: Compose's default network is used. No `backend` or `internal` network is declared.
-- Data volume: `dockermgr_data` mounted at `/app/data`.
-- Self container name: `SELF_CONTAINER=dockermgr`; the updater never updates itself.
+- Data volume: `dockio_data` mounted at `/app/data`.
+- Self container name: `SELF_CONTAINER=dockio`; the updater never updates itself.
 - Timezone: `TZ` from `.env`, default `UTC`.
 
 ## Common commands
@@ -76,7 +76,7 @@ python3 -m compileall -q app
 docker compose config --quiet
 
 # Build locally only when testing image changes
-docker build -t ghcr.io/ivar12/docker-manager:latest .
+docker build -t ghcr.io/ivar12/dock.io:latest .
 
 # Run normally: pulls the published image
 docker compose pull
@@ -93,7 +93,7 @@ Example local override for HTTP access without a proxy (store it outside the rep
 
 ```yaml
 services:
-  dockermgr:
+  dockio:
     ports:
       - ":8080:8000"
     environment:
@@ -132,8 +132,8 @@ Sign in with `ADMIN_USERNAME` and the password generated from your `.env` hash.
 - The New/Edit schedule forms include `_cron_helper.html`, a date/time-style builder that writes the cron field. Presets: daily, weekdays, selected weekdays, hourly, custom.
 - Modes:
   - `all` — all containers except opted-out and self
-  - `selected` — containers labelled `dockermgr.update=true`
-- Opt-out labels: `dockermgr.update=false` or `com.centurylinklabs.watchtower.enable=false`.
+  - `selected` — containers labelled `dockio.update=true`
+- Opt-out labels: `dockio.update=false` or `com.centurylinklabs.watchtower.enable=false`.
 - A schedule can also be restricted to explicit container names.
 - Updates pull the configured image, remove and recreate the container with preserved config, restart it if it was running, and remove the superseded image if no other container uses it.
 - Containers with unusual options (custom macros, complex devices, etc.) should be verified after an in-place update; Compose remains the source of truth for Compose-managed containers.
@@ -178,7 +178,7 @@ Before committing, verify:
 ```bash
 python3 -m compileall -q app
 docker compose config --quiet
-docker build -t ghcr.io/ivar12/docker-manager:latest .
+docker build -t ghcr.io/ivar12/dock.io:latest .
 ```
 
 With the test override running:
@@ -190,7 +190,7 @@ With the test override running:
 - Settings sidebar switches sections
 - Create user, Edit user, role change, password reset and delete work
 - Schedule create/edit/show/run/delete work
-- No errors in `docker logs dockermgr`
+- No errors in `docker logs dockio`
 
 ## Git conventions
 

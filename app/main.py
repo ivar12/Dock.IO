@@ -32,13 +32,13 @@ async def lifespan(app: FastAPI):
     scheduler.stop()
 
 
-app = FastAPI(title="Docker Manager", lifespan=lifespan)
+app = FastAPI(title="Dock.IO", lifespan=lifespan)
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET,
     https_only=SESSION_HTTPS_ONLY,
     same_site="lax",
-    session_cookie="dockermgr_session",
+    session_cookie="dockio_session",
 )
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
@@ -150,8 +150,8 @@ def dashboard(request: Request):
             issues.append(f"{c['name']} has no image configured")
         if c["invalid_update_label"]:
             issues.append(
-                f"{c['name']} has invalid dockermgr.update label "
-                f"('{c['labels'].get('dockermgr.update')}')"
+                f"{c['name']} has invalid dockio.update label "
+                f"('{c['labels'].get('dockio.update')}')"
             )
 
     stats = {
