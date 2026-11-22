@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import re
 import threading
 import time
+
+import httpx
 
 from . import dockerops
 
@@ -27,8 +30,103 @@ def _digest(value: str) -> str:
     return text.rsplit("@", 1)[-1] if "@" in text else text
 
 
+VERSION_TAG = re.compile(r"^v?(\d+)\.(\d+)(?:\.(\d+))?(?:[-_.+].*)?$")
+TAGS_TTL = 600.0
+_tag_lock = threading.Lock()
+_tag_cache: dict[str, tuple[float, list[str]]] = {}
+
+
 def _result(state: str, label: str, css: str, detail: str = "") -> dict:
     return {"state": state, "label": label, "css": css, "detail": detail}
+
+
+def _image_tag(image: str) -> str:
+    if "@" in image:
+        return ""
+    last = image.rsplit("/", 1)[-1]
+    return last.rsplit(":", 1)[-1] if ":" in last else "latest"
+
+
+def _parse_version(tag: str) -> tuple[tuple[int, ...], str] | None:
+    match = VERSION_TAG.match(str(tag or ""))
+    if not match:
+        return None
+    major, minor, patch = match.groups()
+    version = (int(major), int(minor), int(patch or 0))
+    display = tag[1:] if tag.startswith("v") else tag
+    return version, display
+
+
+def _format_version(version: tuple[int, ...]) -> str:
+    return ".".join(str(part) for part in version)
+
+
+def _registry_tags(image: str) -> list[str] | None:
+    """List registry tags for an image, or None when the registry cannot be reached."""
+    repo, _ = dockerops._split_image(image)
+    repo = repo.split("@", 1)[0]
+    first, sep, rest = repo.partition("/")
+    if not sep or ("." not in first and ":" not in first and first != "localhost"):
+        host, name = "registry-1.docker.io", repo
+        if "/" not in name:
+            name = f"library/{name}"
+    else:
+        host, name = first, rest
+
+    with _tag_lock:
+        cached = _tag_cache.get(repo)
+        if cached and time.time() - cached[0] < TAGS_TTL:
+            return cached[1]
+
+    url = f"https://{host}/v2/{name}/tags/list"
+    try:
+        with httpx.Client(timeout=5.0, follow_redirects=True) as client:
+            response = client.get(url)
+            if response.status_code == 401:
+                challenge = client.get(f"https://{host}/v2/").headers.get("www-authenticate", "")
+                params = dict(re.findall(r'(\w+)="([^"]+)"', challenge))
+                realm = params.get("realm")
+                if not realm:
+                    return None
+                token_response = client.get(
+                    realm,
+                    params={
+                        "service": params.get("service", host),
+                        "scope": f"repository:{name}:pull",
+                    },
+                )
+                token_response.raise_for_status()
+                data = token_response.json()
+                token = data.get("token") or data.get("access_token")
+                if not token:
+                    return None
+                response = client.get(url, headers={"Authorization": f"Bearer {token}"})
+            response.raise_for_status()
+            tags = response.json().get("tags") or []
+    except Exception:
+        return None
+
+    with _tag_lock:
+        _tag_cache[repo] = (time.time(), tags)
+    return tags
+
+
+def _newer_in_train(tag: str, tags: list[str]) -> tuple[int, ...] | None:
+    parsed = _parse_version(tag)
+    if not parsed:
+        return None
+    current, _ = parsed
+    best = None
+    for candidate in tags:
+        found = _parse_version(candidate)
+        if not found:
+            continue
+        version, _ = found
+        if version[:2] != current[:2] or version <= current:
+            continue
+        if best is None or version > best:
+            best = version
+    return best
 
 
 CHECKING = _result("checking", "Checking...", "", "Registry check in progress")
@@ -84,6 +182,35 @@ def _check_all() -> None:
                 result = _result("unknown", "Cannot check", "", "Registry check unavailable for this image")
             else:
                 result = _result("error", "Check failed", "no", str(exc)[:200])
+
+        tag = _image_tag(image)
+        parsed = _parse_version(tag)
+        if parsed:
+            current, display = parsed
+            tags = _registry_tags(image)
+            if tags is None:
+                result = _result(
+                    result["state"],
+                    f"{display} · {result['label'].lower()}",
+                    result["css"],
+                    result["detail"],
+                )
+            else:
+                newer = _newer_in_train(tag, tags)
+                if newer:
+                    result = _result(
+                        "update",
+                        f"{_format_version(newer)} · available",
+                        "update",
+                        f"pinned {display}; newer in {current[0]}.{current[1]} train: {_format_version(newer)}",
+                    )
+                else:
+                    result = _result(
+                        "up-to-date",
+                        f"{display} · up to date",
+                        "yes",
+                        f"pinned {display}; no newer release in {current[0]}.{current[1]} train",
+                    )
 
         for alias in _aliases(image):
             results[alias] = result
