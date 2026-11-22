@@ -29,12 +29,18 @@ def _execute(job_id: str, name: str, actor: str) -> tuple[str, bool, str]:
     def progress(phase: str, detail: str = "") -> None:
         db.set_update_job(job_id, phase, detail)
 
+    is_self = name == dockerops.SELF_NAME
     try:
-        ok, msg = dockerops.update_container(name, progress=progress)
+        if is_self:
+            ok, msg = dockerops.update_container(name, progress=progress, job_id=job_id)
+        else:
+            ok, msg = dockerops.update_container(name, progress=progress)
     except Exception as exc:
         ok, msg = False, str(exc)
 
-    db.set_update_job(job_id, "done" if ok else "failed", msg, ok=ok, finished=True)
+    # A successful self-update is finished by the helper in the restarted app.
+    if not (is_self and ok):
+        db.set_update_job(job_id, "done" if ok else "failed", msg, ok=ok, finished=True)
     db.log_action(actor, "update", f"{name}: {'ok' if ok else 'failed'} - {msg}")
     return name, ok, msg
 

@@ -24,6 +24,7 @@ SESSION_HTTPS_ONLY = os.getenv("SESSION_HTTPS_ONLY", "true").lower() in ("1", "t
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init_db()
+    db.finish_self_update_jobs(dockerops.SELF_NAME)
     scheduler.start()
     version.refresh()
     image_updates.refresh()
@@ -196,10 +197,7 @@ def dashboard(request: Request):
         )
         covered = schedule_coverage[container["name"]]
         container["schedules"] = covered["schedules"]
-        if container["is_self"]:
-            container["update_filter"] = "skipped"
-            container["update_text"] = "skipped"
-        elif container["opted_out"]:
+        if container["opted_out"]:
             container["update_filter"] = "opted-out"
             container["update_text"] = "opted out"
         elif not covered["scheduled"]:
@@ -283,9 +281,6 @@ def bulk_container_action(
     failed: list[str] = []
     for name in names:
         if action == "update":
-            if name == dockerops.SELF_NAME:
-                failed.append(f"{name}: skipped (this app)")
-                continue
             updates.start_update(name, actor=actor)
             ok.append(f"{name}: update started")
             continue

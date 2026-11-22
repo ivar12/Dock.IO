@@ -19,12 +19,10 @@
   {% else %}
     <form method="post" action="/container/{{ detail.name }}/action"><input type="hidden" name="act" value="start"><input type="hidden" name="next" value="{{ back }}"><button class="small">Start</button></form>
   {% endif %}
-  {% if not detail.is_self %}
-  <form method="post" action="/container/{{ detail.name }}/update" onsubmit="return confirm('Pull the newest image and recreate {{ detail.name }}?')">
+  <form method="post" action="/container/{{ detail.name }}/update" onsubmit="return confirm('Pull the newest image and recreate {{ detail.name }}?{{ ' Dock.IO will restart briefly.' if detail.is_self }}')">
     <input type="hidden" name="next" value="{{ back }}">
     <button class="small primary">Update now</button>
   </form>
-  {% endif %}
 </div>
 
 <div class="grid">

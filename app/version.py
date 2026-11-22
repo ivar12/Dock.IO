@@ -8,7 +8,7 @@ import time
 
 import httpx
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 RELEASES_API = "https://api.github.com/repos/ivar12/Dock.IO/releases/latest"
 CACHE_TTL = 3600.0
 

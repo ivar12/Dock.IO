@@ -40,7 +40,7 @@ def coverage(containers: list[dict], schedules: list[dict] | None = None) -> dic
     for container in containers:
         modes: set[str] = set()
         names: list[str] = []
-        if not container["is_self"] and not container["opted_out"]:
+        if not container["opted_out"]:
             for schedule in active:
                 explicit = schedule.get("containers") or []
                 included = (

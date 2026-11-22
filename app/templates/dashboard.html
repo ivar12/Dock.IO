@@ -4,7 +4,7 @@
 <h1>Containers</h1>
 {% if msg %}<p class="alert ok">{{ msg }}</p>{% endif %}
 {% if error %}<p class="alert warn">{{ error }}</p>{% endif %}
-<p class="muted">Updates recreate the container with its original config after pulling the newest image. Label a container <code>dockio.update=true</code> to include it in “selected” schedules.</p>
+<p class="muted">Updates recreate the container with its original config after pulling the newest image. Dock.IO can update itself too — it restarts briefly while a helper container does the work. Label a container <code>dockio.update=true</code> to include it in “selected” schedules.</p>
 
 <div class="toolbar">
   <form method="get" action="/"><button class="small">Refresh list</button></form>
@@ -55,8 +55,7 @@
     {'value': 'all', 'label': 'all schedule'},
     {'value': 'selected', 'label': 'selected'},
     {'value': 'opted-out', 'label': 'opted out'},
-    {'value': 'no-schedule', 'label': 'no schedule'},
-    {'value': 'skipped', 'label': 'skipped'}
+    {'value': 'no-schedule', 'label': 'no schedule'}
   ]},
   {'key': 'image-update', 'label': 'Image update', 'options': [
     {'value': 'update', 'label': 'update available'},
@@ -109,7 +108,7 @@
         {% else %}
           <form method="post" action="/container/{{ c.name }}/action"><input type="hidden" name="act" value="start"><button class="small">Start</button></form>
         {% endif %}
-        <form method="post" action="/container/{{ c.name }}/update" onsubmit="return confirm('Pull the newest image and recreate {{ c.name }}?')">
+        <form method="post" action="/container/{{ c.name }}/update" onsubmit="return confirm('Pull the newest image and recreate {{ c.name }}?{{ ' Dock.IO will restart briefly.' if c.is_self }}')">
           <button class="small primary">Update now</button>
         </form>
       </td>

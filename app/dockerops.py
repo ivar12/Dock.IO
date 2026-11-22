@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import inspect
+import json
 import os
+import secrets
 
 import docker
 
@@ -122,6 +124,97 @@ def _image_users(image_id: str) -> list[str]:
     return sorted(users)
 
 
+def _docker_socket_bind(info: dict) -> str:
+    """Find the Docker socket bind so a helper container can reach the API."""
+    host = info.get("HostConfig") or {}
+    for bind in host.get("Binds") or []:
+        if str(bind).split(":", 1)[0] == "/var/run/docker.sock":
+            return str(bind)
+    for mount in info.get("Mounts") or []:
+        if mount.get("Destination") == "/var/run/docker.sock" and mount.get("Type") == "bind":
+            return f"{mount.get('Source')}:/var/run/docker.sock"
+    return ""
+
+
+def _data_mounts(info: dict) -> list[dict]:
+    """Mounts pointing at the app's data directory (shared with the helper)."""
+    data_dir = os.getenv("DATA_DIR", "/app/data")
+    mounts = []
+    for mount in info.get("Mounts") or []:
+        if mount.get("Destination") != data_dir:
+            continue
+        source = mount.get("Name") if mount.get("Type") == "volume" else mount.get("Source")
+        item = {
+            "Type": mount.get("Type", "volume"),
+            "Source": source or mount.get("Source"),
+            "Target": mount.get("Destination"),
+            "RW": bool(mount.get("RW", True)),
+        }
+        for key in ("BindOptions", "VolumeOptions", "TmpfsOptions"):
+            if mount.get(key):
+                item[key] = mount[key]
+        mounts.append(item)
+    return mounts
+
+
+def _delegate_self_update(
+    info: dict,
+    name: str,
+    image: str,
+    old_image_id: str,
+    new_image_id: str,
+    create_kwargs: dict,
+    was_running: bool,
+    job_id: str = "",
+    progress=None,
+) -> tuple[bool, str]:
+    """Hand the recreate step to a short-lived helper container.
+
+    Removing this app's own container kills the thread doing the update, so a
+    helper outside the app process performs the stop/create/start sequence.
+    """
+    socket_bind = _docker_socket_bind(info)
+    if not socket_bind:
+        return False, (
+            f"{name}: cannot update itself - no /var/run/docker.sock bind found; "
+            "mount the Docker socket in the Compose file"
+        )
+
+    helper_name = f"dockio-self-update-{secrets.token_hex(4)}"
+    payload = {
+        "target": name,
+        "create": create_kwargs,
+        "new_image": new_image_id,
+        "old_image": old_image_id,
+        "was_running": bool(was_running),
+        "job_id": job_id,
+    }
+    helper_host = {
+        "Binds": [socket_bind],
+        "Mounts": _data_mounts(info),
+        "AutoRemove": True,
+        "RestartPolicy": {"Name": "no"},
+        "NetworkMode": "default",
+    }
+    try:
+        created = api.create_container(
+            name=helper_name,
+            image=new_image_id or image,
+            command=["python", "-m", "app.self_update_helper"],
+            environment=[f"DOCKIO_PAYLOAD={json.dumps(payload)}"],
+            host_config=helper_host,
+        )
+        api.start(created["Id"])
+    except Exception as exc:
+        return False, f"{name}: could not start self-update helper: {exc}"
+
+    _report(progress, "recreating", f"Handed to {helper_name}; Dock.IO will restart shortly")
+    return True, (
+        f"{name}: self-update started via {helper_name} "
+        f"(image {_short_id(new_image_id)}); the app restarts in a few seconds"
+    )
+
+
 def _pull(image: str, progress=None) -> tuple[bool, str]:
     repo, tag = _split_image(image)
     last_line = ""
@@ -178,7 +271,9 @@ def _cleanup_old_image(old_image_id: str, container_name: str, new_image_id: str
     return ""
 
 
-def update_container(name: str, progress=None) -> tuple[bool, str]:
+def update_container(
+    name: str, progress=None, job_id: str = ""
+) -> tuple[bool, str]:
     """Pull the configured image and recreate the container with the same config."""
     _report(progress, "inspecting", f"Reading configuration of {name}")
     try:
@@ -250,6 +345,12 @@ def update_container(name: str, progress=None) -> tuple[bool, str]:
 
     create_kwargs = _supported_kwargs(api.create_container, create_kwargs)
 
+    if name == SELF_NAME:
+        return _delegate_self_update(
+            info, name, image, old_image_id, new_image_id,
+            create_kwargs, was_running, job_id=job_id, progress=progress,
+        )
+
     _report(progress, "recreating", f"Recreating {name}")
     try:
         api.remove_container(name, force=True)
@@ -293,7 +394,7 @@ def select_targets(mode: str, explicit: list[str] | None = None) -> list[str]:
 
     return [
         n for n in names
-        if n != SELF_NAME and by_name[n]["running"] and not by_name[n]["opted_out"]
+        if by_name[n]["running"] and not by_name[n]["opted_out"]
     ]
 
 

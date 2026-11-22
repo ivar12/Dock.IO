@@ -277,6 +277,23 @@ def active_update_jobs() -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def finish_self_update_jobs(container: str) -> None:
+    """Close self-update jobs left open by a restart (the helper normally does this)."""
+    with connection() as conn:
+        conn.execute(
+            """UPDATE update_jobs
+               SET phase = 'done',
+                   detail = detail || ' (app restarted)',
+                   ok = 1,
+                   finished_at = CURRENT_TIMESTAMP,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE container = ? AND finished_at IS NULL
+                 AND phase IN ('queued', 'inspecting', 'pulling', 'recreating',
+                               'starting', 'cleanup')""",
+            (container,),
+        )
+
+
 def delete_old_update_jobs(hours: int = 24) -> None:
     with connection() as conn:
         conn.execute(

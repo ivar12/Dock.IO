@@ -125,6 +125,7 @@ docker compose up -d
 - **Containers / Images / Networks / Schedules** — use the **Show** button in each row for details.
 - **Bulk actions** — tick the checkboxes in Containers, Images or Networks, choose an action in the bar above the table, then apply it.
 - **Updates** — watch live container update progress, see the running/latest Dock.IO version, and check GitHub for a new release.
+- **Self-update** — Dock.IO can update its own container. It pulls the new image, then a short-lived helper container recreates and restarts it; the app is unavailable for a few seconds. The Docker socket must be mounted (as it is in the supplied `docker-compose.yml`). The first upgrade from an older version still needs a manual `docker compose pull && docker compose up -d`.
 - **Schedules** — create, run now, pause, edit, show, or delete from the list or detail page. Cron is 5-field; APScheduler weekdays are `0=Monday … 6=Sunday`.
 - **Settings** — admin-only, with **Overview**, **Users**, and **Security** sections. Application info appears directly under the Overview stats.
 - **Roles** — `admin` can access Settings; `user` cannot. The first account created in the web UI is an admin.
