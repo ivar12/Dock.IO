@@ -5,7 +5,7 @@ from __future__ import annotations
 import secrets
 import threading
 
-from . import db, dockerops, image_updates
+from . import db, dockerops, image_updates, timefmt
 
 PHASE_LABELS = {
     "queued": "Queued",
@@ -72,6 +72,7 @@ def status() -> dict:
     db.delete_old_update_jobs()
     jobs = db.active_update_jobs()
     for job in jobs:
+        job["started_display"] = timefmt.format_time(job.get("started_at"))
         phase = job["phase"]
         job["label"] = PHASE_LABELS.get(phase, phase)
         job["active"] = True

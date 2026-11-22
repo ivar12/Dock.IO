@@ -18,7 +18,7 @@
     <tr><th>Cron (5 fields; 0=Mon ... 6=Sun)</th><td class="mono">{{ schedule.cron }}</td></tr>
     <tr><th>Mode</th><td>{{ schedule.mode }}</td></tr>
     <tr><th>Enabled</th><td>{{ 'yes' if schedule.enabled else 'no' }}</td></tr>
-    <tr><th>Created</th><td class="mono">{{ schedule.created_at }}</td></tr>
+    <tr><th>Created</th><td class="mono">{{ schedule.created_at | localtime }}</td></tr>
     <tr><th>Containers</th><td>
       {% if schedule.containers %}{{ schedule.containers | join(', ') }}
       {% elif schedule.mode == 'selected' %}Containers labelled <code>dockio.update=true</code>

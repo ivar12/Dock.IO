@@ -30,7 +30,7 @@
       '<td><div class="progress"><span style="width:' + percent + '%"></span></div>' +
       '<span class="muted small-text">' + percent + "%</span></td>" +
       '<td class="mono wrap">' + esc(job.detail || "-") + "</td>" +
-      '<td class="mono small-text">' + esc(shortTime(job.started_at)) + "</td>" +
+      '<td class="mono small-text">' + esc(job.started_display || shortTime(job.started_at)) + "</td>" +
       '<td class="small-text">' + esc(job.actor) + "</td>" +
       "</tr>"
     );

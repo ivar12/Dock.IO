@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth, db, dockerops, image_updates, scheduler, updates, version
+from . import auth, db, dockerops, image_updates, scheduler, timefmt, updates, version
 
 SESSION_SECRET = os.getenv("SESSION_SECRET", "")
 if not SESSION_SECRET:
@@ -45,6 +45,8 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 templates.env.globals["app_version"] = version.VERSION
 templates.env.globals["release_info"] = version.update_info
+templates.env.globals["app_timezone"] = timefmt.timezone_label()
+templates.env.filters["localtime"] = timefmt.format_time
 
 
 @app.middleware("http")

@@ -41,7 +41,7 @@
       </td>
       <td class="mono">{{ image.short_id }}</td>
       <td>{{ (image.size / 1048576) | round(1) }} MiB</td>
-      <td class="mono">{{ image.created[:19] if image.created else '-' }}</td>
+      <td class="mono">{{ image.created | localtime }}</td>
       <td>{{ image.containers }}</td>
       <td class="actions">
         <a class="button small" href="/images/{{ image.short_id }}">Show</a>

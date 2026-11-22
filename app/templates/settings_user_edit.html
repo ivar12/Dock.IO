@@ -11,7 +11,7 @@
     <tr><th>Username</th><td class="mono">{{ target.username }}</td></tr>
     <tr><th>Type</th><td>{{ 'local' if target.is_local else 'OIDC' }}</td></tr>
     <tr><th>Local password</th><td>{{ 'set' if target.has_password else 'not set' }}</td></tr>
-    <tr><th>Created</th><td class="mono">{{ target.created_at }}</td></tr>
+    <tr><th>Created</th><td class="mono">{{ target.created_at | localtime }}</td></tr>
   </table>
 
   <form method="post" action="/settings/users/{{ target.username | urlencode }}/edit">

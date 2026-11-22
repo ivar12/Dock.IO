@@ -30,7 +30,7 @@
     <h2>Configuration</h2>
     <table class="plain">
       <tr><th>Image ID</th><td class="mono"><a href="/images/{{ detail.image_id }}">{{ detail.image_id }}</a></td></tr>
-      <tr><th>Created</th><td class="mono">{{ detail.created[:19] if detail.created else '-' }}</td></tr>
+      <tr><th>Created</th><td class="mono">{{ detail.created | localtime }}</td></tr>
       <tr><th>Command</th><td class="mono">{{ detail.command or '-' }}</td></tr>
       <tr><th>Entrypoint</th><td class="mono">{{ detail.entrypoint or '-' }}</td></tr>
       <tr><th>Restart policy</th><td>{{ detail.restart_policy.get('Name', '-') }}{{ ' (max ' ~ detail.restart_policy.get('MaximumRetryCount') ~ ')' if detail.restart_policy.get('MaximumRetryCount') }}</td></tr>
@@ -42,7 +42,7 @@
     <h2>State</h2>
     <table class="plain">
       {% for key, value in detail.state.items() %}
-      <tr><th>{{ key }}</th><td class="mono">{{ value }}</td></tr>
+      <tr><th>{{ key }}</th><td class="mono">{{ value | localtime }}</td></tr>
       {% endfor %}
     </table>
   </section>

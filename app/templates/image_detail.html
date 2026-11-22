@@ -16,7 +16,7 @@
     <h2>Details</h2>
     <table class="plain">
       <tr><th>ID</th><td class="mono">{{ detail.id }}</td></tr>
-      <tr><th>Created</th><td class="mono">{{ detail.created[:19] if detail.created else '-' }}</td></tr>
+      <tr><th>Created</th><td class="mono">{{ detail.created | localtime }}</td></tr>
       <tr><th>OS / Arch</th><td>{{ detail.os }} / {{ detail.architecture }}</td></tr>
       <tr><th>Docker version</th><td>{{ detail.docker_version or '-' }}</td></tr>
       <tr><th>Command</th><td class="mono">{{ detail.command or '-' }}</td></tr>

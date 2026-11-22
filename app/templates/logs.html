@@ -9,7 +9,7 @@
   <tbody>
   {% for e in entries %}
     <tr data-filter-item data-search="{{ (e.ts ~ ' ' ~ e.actor ~ ' ' ~ e.action ~ ' ' ~ e.detail) | lower | e }}">
-      <td class="mono">{{ e.ts }}</td><td>{{ e.actor }}</td><td>{{ e.action }}</td><td class="mono wrap">{{ e.detail }}</td>
+      <td class="mono">{{ e.ts | localtime }}</td><td>{{ e.actor }}</td><td>{{ e.action }}</td><td class="mono wrap">{{ e.detail }}</td>
     </tr>
   {% endfor %}
   </tbody>
