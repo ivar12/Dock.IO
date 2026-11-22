@@ -68,7 +68,7 @@ def _check_all() -> None:
             else:
                 result = _result(
                     "update",
-                    "Update available",
+                    "available",
                     "update",
                     f"local {_short(local[0])} / registry {_short(remote)}",
                 )
