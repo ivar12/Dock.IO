@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth, db, dockerops, scheduler
+from . import auth, db, dockerops, scheduler, updates, version
 
 SESSION_SECRET = os.getenv("SESSION_SECRET", "")
 if not SESSION_SECRET:
@@ -25,7 +25,8 @@ SESSION_HTTPS_ONLY = os.getenv("SESSION_HTTPS_ONLY", "true").lower() in ("1", "t
 async def lifespan(app: FastAPI):
     db.init_db()
     scheduler.start()
-    db.log_action("system", "startup", "Dock.IO started")
+    version.refresh()
+    db.log_action("system", "startup", f"Dock.IO {version.VERSION} started")
     yield
     scheduler.stop()
 
@@ -40,6 +41,8 @@ app.add_middleware(
 )
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
+templates.env.globals["app_version"] = version.VERSION
+templates.env.globals["release_info"] = version.update_info
 
 
 @app.middleware("http")
@@ -262,9 +265,8 @@ def container_action(
 def container_update(request: Request, name: str, next: str = Form("")):
     if redirect := _need_login(request):
         return redirect
-    ok, msg = dockerops.update_container(name)
-    db.log_action(_user(request), "manual update", f"{'ok' if ok else 'failed'}: {msg}")
-    return RedirectResponse(_safe_next(next, "/"), status_code=303)
+    updates.start_update(name, actor=_user(request) or "unknown")
+    return RedirectResponse(_safe_next(next, "/updates"), status_code=303)
 
 
 @app.get("/schedules")
@@ -400,9 +402,10 @@ def run_schedule_now(request: Request, schedule_id: int, background_tasks: Backg
         return redirect
     schedule = db.get_schedule(schedule_id)
     if schedule:
-        background_tasks.add_task(scheduler.run_schedule, schedule_id)
-        db.log_action(_user(request), "run schedule now", schedule["name"])
-    return RedirectResponse("/schedules", status_code=303)
+        actor = _user(request) or "unknown"
+        background_tasks.add_task(scheduler.run_schedule, schedule_id, actor)
+        db.log_action(actor, "run schedule now", schedule["name"])
+    return RedirectResponse("/updates", status_code=303)
 
 
 @app.get("/logs")
@@ -414,6 +417,37 @@ def logs_page(request: Request):
         "logs.html",
         {"user": _user(request), "entries": db.list_audit(200)},
     )
+
+
+# ----------------------------------------------------------------------- updates
+@app.get("/updates")
+def updates_page(request: Request):
+    if redirect := _need_login(request):
+        return redirect
+    return templates.TemplateResponse(
+        request,
+        "updates.html",
+        {
+            "user": _user(request),
+            "update_info": version.update_info(),
+            "phases": updates.PHASE_LABELS,
+        },
+    )
+
+
+@app.get("/updates/status")
+def updates_status(request: Request):
+    if not _user(request):
+        return {"error": "not authenticated"}, 401
+    return updates.status()
+
+
+@app.post("/updates/check")
+def updates_check(request: Request):
+    if redirect := _need_login(request):
+        return redirect
+    version.check_now()
+    return RedirectResponse("/updates", status_code=303)
 
 
 # ---------------------------------------------------------------------- images
@@ -554,7 +588,10 @@ def settings_page(request: Request):
         "oidc_status": "enabled" if auth.OIDC_ENABLED else "disabled",
     }
 
+    release = version.update_info()
     info = [
+        {"label": "Running version", "value": f"v{release['current']}"},
+        {"label": "Latest available", "value": f"v{release['latest']}" if release["latest"] else "unknown"},
         {"label": "First admin account", "value": "created in the web UI on first launch"},
         {"label": "Session cookie", "value": "HTTPS only" if SESSION_HTTPS_ONLY else "HTTP allowed (local testing)"},
         {"label": "OIDC", "value": "enabled" if auth.OIDC_ENABLED else "disabled"},

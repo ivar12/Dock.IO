@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Updates - Dock.IO{% endblock %}
+{% block content %}
+<h1>Updates</h1>
+
+<div class="grid">
+  <section class="card">
+    <h2>Dock.IO version</h2>
+    <table class="plain">
+      <tr><th>Running version</th><td class="mono">v{{ update_info.current }}</td></tr>
+      <tr><th>Latest available</th><td class="mono">{{ ('v' ~ update_info.latest) if update_info.latest else 'unknown' }}</td></tr>
+      <tr><th>Status</th><td>
+        {% if update_info.available %}<span class="tag yes">update available</span>
+        {% elif update_info.latest %}<span class="tag">up to date</span>
+        {% else %}<span class="tag">not checked yet</span>{% endif %}
+      </td></tr>
+    </table>
+    {% if update_info.available %}
+    <p><a class="button primary small" href="{{ update_info.url or 'https://github.com/ivar12/Dock.IO/releases' }}">View release v{{ update_info.latest }}</a></p>
+    {% endif %}
+    {% if update_info.error %}<p class="muted small-text">Last check failed: {{ update_info.error }}</p>{% endif %}
+    <form method="post" action="/updates/check"><button class="small">Check for updates now</button></form>
+  </section>
+
+  <section class="card">
+    <h2>Live update progress <span class="tag" id="update-active-count">0 active</span></h2>
+    <p class="muted small-text">Updates started from Containers or by a schedule appear here. This list refreshes automatically.</p>
+    <div id="update-progress-list">
+      <table>
+        <thead><tr><th>Container</th><th>Phase</th><th>Progress</th><th>Detail</th><th>Started</th><th>Actor</th></tr></thead>
+        <tbody id="update-rows">
+          <tr><td colspan="6" class="muted">No updates have run yet.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+<script src="/static/updates.js" defer></script>
+{% endblock %}

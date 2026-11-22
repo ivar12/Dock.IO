@@ -8,7 +8,7 @@ This is **Dock.IO**, a custom-built Docker management webapp written from scratc
 
 The app manages Docker containers, pulls images, recreates containers on update, runs scheduled updates, and provides local + OIDC authentication.
 
-Current released version: **v1.1.0**.
+Current released version: **v1.2.0**.
 
 ## Golden rules
 
@@ -43,9 +43,12 @@ Current released version: **v1.1.0**.
 | `app/dockerops.py` | Docker inventory, actions, image/network helpers, update + old-image cleanup |
 | `app/scheduler.py` | APScheduler cron jobs, timezone from `TZ` |
 | `app/auth.py` | Password hashing, local admin bootstrap, OIDC authorize/token/userinfo |
-| `app/db.py` | SQLite schema, migrations, users, schedules, audit |
+| `app/db.py` | SQLite schema, migrations, users, schedules, update jobs, audit |
+| `app/updates.py` | Tracked background container updates with progress phases |
+| `app/version.py` | Running version and cached GitHub latest-release check |
 | `app/templates/` | Jinja2 UI templates |
 | `app/static/style.css` | UI styling |
+| `app/static/updates.js` | Polls `/updates/status` and renders live update progress |
 | `Dockerfile` | Builds the image from source (used by GitHub Actions) |
 | `.github/workflows/docker-publish.yml` | Builds and publishes the image to GHCR on push/tag |
 | `requirements.txt` | Python dependencies |
@@ -183,7 +186,9 @@ With the test override running:
 - `/health` returns `{"ok":true}`
 - On a fresh volume `/` redirects to `/setup`, and creating the first admin signs you in
 - `/login` accepts the account created in the web UI
-- `/`, `/images`, `/networks`, `/schedules`, `/settings` return 200
+- `/`, `/images`, `/networks`, `/updates`, `/schedules`, `/settings` return 200
+- The topbar shows `v<version>` beside the Dock.IO brand; `/updates` shows current/latest version and `/updates/status` returns JSON
+- Container updates create tracked jobs and the Updates page auto-refreshes their phase/progress
 - Search boxes and dropdown filters hide/show rows correctly on all list pages
 - Show buttons open the expected detail pages
 - Settings sidebar switches sections
@@ -197,7 +202,7 @@ With the test override running:
 - Meaningful commit messages (`feat:`, `fix:`, `refactor:`, `chore:`, `deploy:`)
 - Annotated version tags after validated changes
 - Keep the working tree clean at handover
-- Tag history: `v1.0.0` (first public release), `v1.1.0` (search/filters + web UI first admin)
+- Tag history: `v1.0.0` (first public release), `v1.1.0` (search/filters + web UI first admin), `v1.2.0` (update progress + release/version display)
 
 ## Historical context
 

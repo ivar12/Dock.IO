@@ -54,6 +54,18 @@ def init_db() -> None:
                 action TEXT NOT NULL,
                 detail TEXT NOT NULL DEFAULT ''
             );
+
+            CREATE TABLE IF NOT EXISTS update_jobs (
+                id TEXT PRIMARY KEY,
+                container TEXT NOT NULL,
+                actor TEXT NOT NULL,
+                phase TEXT NOT NULL,
+                detail TEXT NOT NULL DEFAULT '',
+                ok INTEGER,
+                started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                finished_at TEXT
+            );
             """
         )
         columns = {r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
@@ -215,6 +227,54 @@ def _schedule_dict(row: sqlite3.Row) -> dict:
         "enabled": bool(row["enabled"]),
         "created_at": row["created_at"],
     }
+
+
+# ---------------------------------------------------------------------- update jobs
+def create_update_job(job_id: str, container: str, actor: str) -> None:
+    with connection() as conn:
+        conn.execute(
+            """INSERT INTO update_jobs (id, container, actor, phase)
+               VALUES (?, ?, ?, 'queued')""",
+            (job_id, container, actor),
+        )
+
+
+def set_update_job(
+    job_id: str, phase: str, detail: str = "", ok: bool | None = None, finished: bool = False
+) -> None:
+    with connection() as conn:
+        if finished:
+            conn.execute(
+                """UPDATE update_jobs
+                   SET phase = ?, detail = ?, ok = ?, finished_at = CURRENT_TIMESTAMP,
+                       updated_at = CURRENT_TIMESTAMP
+                   WHERE id = ?""",
+                (phase, detail[:4000], None if ok is None else int(ok), job_id),
+            )
+        else:
+            conn.execute(
+                """UPDATE update_jobs SET phase = ?, detail = ?, updated_at = CURRENT_TIMESTAMP
+                   WHERE id = ?""",
+                (phase, detail[:4000], job_id),
+            )
+
+
+def list_update_jobs(limit: int = 30) -> list[dict]:
+    with connection() as conn:
+        rows = conn.execute(
+            """SELECT * FROM update_jobs
+               ORDER BY (finished_at IS NULL) DESC, started_at DESC, rowid DESC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def active_update_jobs() -> list[dict]:
+    with connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM update_jobs WHERE finished_at IS NULL ORDER BY started_at"
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 # ---------------------------------------------------------------------------- audit

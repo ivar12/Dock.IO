@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from . import db, dockerops
+from . import db, dockerops, updates
 
 TIMEZONE = ZoneInfo(os.getenv("TZ", "UTC"))
 scheduler = BackgroundScheduler(timezone=TIMEZONE)
@@ -18,18 +18,18 @@ def _job_id(schedule_id: int) -> str:
     return f"schedule-{schedule_id}"
 
 
-def run_schedule(schedule_id: int) -> None:
+def run_schedule(schedule_id: int, actor: str = "scheduler") -> None:
     schedule = db.get_schedule(schedule_id)
     if not schedule:
         return
     targets = dockerops.select_targets(schedule["mode"], schedule["containers"])
     db.log_action(
-        "scheduler",
+        actor,
         f"run '{schedule['name']}'",
         f"mode={schedule['mode']}, targets={', '.join(targets) or 'none'}",
     )
-    for name, ok, msg in dockerops.apply_updates(targets, actor=f"scheduler:{schedule['name']}"):
-        db.log_action("scheduler", f"result {name}", f"{'ok' if ok else 'failed'}: {msg}")
+    for name, ok, msg in updates.run_sequence(targets, actor=actor):
+        db.log_action(actor, f"result {name}", f"{'ok' if ok else 'failed'}: {msg}")
 
 
 def add_job(schedule: dict) -> None:

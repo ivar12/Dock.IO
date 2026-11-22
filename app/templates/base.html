@@ -9,13 +9,16 @@
 </head>
 <body>
 <header>
-  <a class="brand" href="/">Dock.IO</a>
+  <a class="brand" href="/">Dock.IO <span class="version">v{{ app_version }}</span></a>
+  {% set release = release_info() %}
+  {% if release.available %}<a class="update-available" href="{{ release.url or '/updates' }}" title="A newer Dock.IO release is available">Update available: v{{ release.latest }}</a>{% endif %}
   {% if user %}
   <nav>
     <a href="/">Containers</a>
     <a href="/images">Images</a>
     <a href="/networks">Networks</a>
     <a href="/schedules">Schedules</a>
+    <a href="/updates">Updates</a>
     <a href="/logs">Activity</a>
     <a href="/settings">Settings</a>
     <span class="user">{{ user }}</span>

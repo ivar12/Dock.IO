@@ -7,12 +7,14 @@
 ![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-web%20UI-009485?logo=fastapi&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
-![Version](https://img.shields.io/badge/version-v1.1.0-brightgreen)
+![Version](https://img.shields.io/badge/version-v1.2.0-brightgreen)
 
 ## What it does
 
 - **Manage containers** — start, stop, restart, and update them from the browser.
 - **Update safely** — pull a new image, recreate the container with its original config, restore its running state, and remove the superseded image when unused.
+- **See update progress** — manual and scheduled updates are tracked phase by phase on the **Updates** page, with live auto-refresh.
+- **Spot new releases** — the running version appears beside the Dock.IO title, and an update-available badge links to the latest GitHub release.
 - **Schedule updates** — multiple cron schedules for all containers, selected containers, or an explicit list. New/Edit forms include a date/time-style cron helper.
 - **Inspect resources** — Show pages for containers, images, networks, and schedules with configuration, state, mounts, environment, labels, and attachments.
 - **Find things fast** — every list page has a live search box plus status/usage filters.
@@ -117,6 +119,7 @@ docker compose up -d
 ## Using it
 
 - **Containers / Images / Networks / Schedules** — use the **Show** button in each row for details.
+- **Updates** — watch live container update progress, see the running/latest Dock.IO version, and check GitHub for a new release.
 - **Schedules** — create, run now, pause, edit, show, or delete. Cron is 5-field; APScheduler weekdays are `0=Monday … 6=Sunday`.
 - **Settings** — admin-only, with **Overview**, **Users**, and **Security** sections. Application info appears directly under the Overview stats.
 - **Roles** — `admin` can access Settings; `user` cannot. The first account created in the web UI is an admin.

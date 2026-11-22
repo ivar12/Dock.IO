@@ -6,6 +6,12 @@
 body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, sans-serif; }
 header { display: flex; align-items: center; gap: 24px; padding: 14px 24px; background: var(--panel); border-bottom: 1px solid var(--line); }
 .brand { font-weight: 700; color: var(--accent); text-decoration: none; font-size: 18px; }
+.brand .version { display: inline-block; margin-left: 6px; padding: 2px 7px; border: 1px solid var(--line); border-radius: 20px; background: #101724; color: var(--muted); font-size: 11px; vertical-align: middle; }
+.update-available { margin-left: -10px; padding: 4px 10px; border: 1px solid #7a4b20; border-radius: 20px; background: #2a2115; color: #ffd8a8 !important; font-size: 12px; text-decoration: none; white-space: nowrap; }
+.progress { display: inline-block; width: 110px; height: 8px; margin-right: 6px; border: 1px solid var(--line); border-radius: 20px; background: #101724; overflow: hidden; vertical-align: middle; }
+.progress span { display: block; height: 100%; background: var(--accent); transition: width .3s ease; }
+tr.update-job.done .progress span { background: #4ade80; }
+tr.update-job.failed .progress span { background: var(--danger); }
 nav { display: flex; gap: 16px; align-items: center; margin-left: auto; }
 nav a { color: var(--text); text-decoration: none; }
 nav a:hover { color: var(--accent); }

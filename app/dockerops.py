@@ -99,9 +99,15 @@ def _split_image(image: str) -> tuple[str, str | None]:
     return image, "latest"
 
 
-def _pull(image: str) -> tuple[bool, str]:
+def _report(progress, phase: str, detail: str = "") -> None:
+    if progress:
+        progress(phase, detail)
+
+
+def _pull(image: str, progress=None) -> tuple[bool, str]:
     repo, tag = _split_image(image)
     last_line = ""
+    _report(progress, "pulling", f"Pulling {image}")
     try:
         if tag is None:
             stream = api.pull(repo, stream=True, decode=True)
@@ -112,6 +118,8 @@ def _pull(image: str) -> tuple[bool, str]:
                 last_line = str(line["status"])
             elif isinstance(line, str):
                 last_line = line
+            if last_line:
+                _report(progress, "pulling", last_line)
         return True, last_line or "image pulled"
     except Exception as exc:  # docker.errors.APIError, image not found, registry down, ...
         return False, f"pull failed: {exc}"
@@ -144,8 +152,9 @@ def _cleanup_old_image(old_image_id: str, container_name: str) -> str:
         return f"old image cleanup skipped: {exc}"
 
 
-def update_container(name: str) -> tuple[bool, str]:
+def update_container(name: str, progress=None) -> tuple[bool, str]:
     """Pull the configured image and recreate the container with the same config."""
+    _report(progress, "inspecting", f"Reading configuration of {name}")
     try:
         info = api.inspect_container(name)
     except Exception as exc:
@@ -160,7 +169,7 @@ def update_container(name: str) -> tuple[bool, str]:
     if not image:
         return False, f"{name}: container has no image"
 
-    ok, pull_msg = _pull(image)
+    ok, pull_msg = _pull(image, progress=progress)
     if not ok:
         return False, f"{name}: {pull_msg}"
 
@@ -208,15 +217,18 @@ def update_container(name: str) -> tuple[bool, str]:
 
     create_kwargs = _supported_kwargs(api.create_container, create_kwargs)
 
+    _report(progress, "recreating", f"Recreating {name}")
     try:
         api.remove_container(name, force=True)
         created = api.create_container(**create_kwargs)
         container_id = created["Id"]
         if was_running:
+            _report(progress, "starting", f"Starting {name}")
             api.start(container_id)
     except Exception as exc:
         return False, f"{name}: recreate failed: {exc}"
 
+    _report(progress, "cleanup", "Removing superseded image if unused")
     cleanup = _cleanup_old_image(old_image_id, name)
     detail = f"{name}: updated ({pull_msg})"
     if cleanup:
