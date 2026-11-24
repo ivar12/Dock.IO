@@ -14,7 +14,7 @@
 - **Manage containers** — start, stop, restart, and update them from the browser.
 - **Update safely** — pull a new image, verify the recreated container uses that exact image, restore its running state, and remove the superseded image when no other container needs it.
 - **See update progress** — manual and scheduled updates are tracked phase by phase on the **Updates** page; finished jobs leave the live list.
-- **Check image freshness** — each container shows up-to-date / update-available labels, and the container stats show how many updates are available. Use **Check image updates** to refresh the digest comparison.
+- **Check image freshness** — each container shows up-to-date / update-available labels, and the container stats show how many updates are available. Use **Check image updates** to refresh the digest comparison. Docker Hub images are checked through Hub's metadata API, so checks do not consume the registry pull quota; other registries use the Docker daemon.
 - **Bulk actions** — select multiple containers to start/stop/restart/update, or multiple images/networks to delete at once.
 - **Light and dark mode** — switch from the header; the choice is remembered in the browser.
 - **Spot new releases** — the running version appears beside the Dock.IO title, and an update-available badge links to the latest GitHub release.

@@ -5,12 +5,16 @@ from __future__ import annotations
 import re
 import threading
 import time
+from urllib.parse import quote
 
 import httpx
 
 from . import dockerops
 
 TTL_SECONDS = 600.0
+HUB_API = "https://hub.docker.com/v2/repositories"
+TAG_PAGE_SIZE = 100
+MAX_TAG_PAGES = 5
 _lock = threading.Lock()
 _state = {
     "checked_at": 0.0,
@@ -34,6 +38,39 @@ VERSION_TAG = re.compile(r"^v?(\d+)\.(\d+)(?:\.(\d+))?(?:[-_.+].*)?$")
 TAGS_TTL = 600.0
 _tag_lock = threading.Lock()
 _tag_cache: dict[str, tuple[float, list[str]]] = {}
+
+
+class _Unavailable(Exception):
+    """Registry metadata could not be checked without spending a pull."""
+
+
+def _docker_hub_repo(repo: str) -> tuple[str, str] | None:
+    """Return (namespace, name) for a Docker Hub repository, else None."""
+    if not repo:
+        return None
+    first, sep, rest = repo.partition("/")
+    if first in ("docker.io", "index.docker.io", "registry-1.docker.io"):
+        namespace, slash, name = rest.partition("/")
+        if not namespace:
+            return None
+        return (namespace, name) if slash else ("library", namespace)
+    if not sep or ("." not in first and ":" not in first and first != "localhost"):
+        return (first, rest) if sep else ("library", first)
+    return None
+
+
+def _hub_get(path: str, params: dict[str, str | int] | None = None) -> dict | None:
+    """Read Docker Hub metadata; Hub API limits are separate from pull limits."""
+    try:
+        with httpx.Client(timeout=5.0, follow_redirects=True) as client:
+            response = client.get(f"{HUB_API}{path}", params=params)
+            if response.status_code == 429:
+                return None
+            response.raise_for_status()
+            data = response.json()
+            return data if isinstance(data, dict) else None
+    except Exception:
+        return None
 
 
 def _result(state: str, label: str, css: str, detail: str = "") -> dict:
@@ -61,10 +98,64 @@ def _format_version(version: tuple[int, ...]) -> str:
     return ".".join(str(part) for part in version)
 
 
-def _registry_tags(image: str) -> list[str] | None:
-    """List registry tags for an image, or None when the registry cannot be reached."""
+def _hub_tag_digest(repo: str, tag: str) -> str | None:
+    """Get a tag's digest from Docker Hub metadata without a registry pull."""
+    hub = _docker_hub_repo(repo)
+    if not hub or not tag:
+        return None
+
+    namespace, name = hub
+    path = (
+        f"/{quote(namespace, safe='')}/{quote(name, safe='')}"
+        f"/tags/{quote(tag, safe='')}"
+    )
+    data = _hub_get(path)
+    digest = _digest(data.get("digest")) if data else ""
+    return digest or None
+
+
+def _hub_tags(repo: str, name_filter: str) -> list[str] | None:
+    """List matching Docker Hub tags from the metadata API, not the registry."""
+    hub = _docker_hub_repo(repo)
+    if not hub:
+        return None
+
+    key = f"tags:{repo}:{name_filter}"
+    with _tag_lock:
+        cached = _tag_cache.get(key)
+        if cached and time.time() - cached[0] < TAGS_TTL:
+            return cached[1]
+
+    namespace, name = hub
+    path = f"/{quote(namespace, safe='')}/{quote(name, safe='')}/tags"
+    tags: list[str] = []
+    for page in range(1, MAX_TAG_PAGES + 1):
+        data = _hub_get(path, {
+            "name": name_filter,
+            "page_size": TAG_PAGE_SIZE,
+            "page": page,
+        })
+        if data is None:
+            return None
+        for item in data.get("results") or []:
+            tag = item.get("name") if isinstance(item, dict) else None
+            if tag:
+                tags.append(tag)
+        if not data.get("next"):
+            break
+
+    with _tag_lock:
+        _tag_cache[key] = (time.time(), tags)
+    return tags
+
+
+def _registry_tags(image: str, name_filter: str = "") -> list[str] | None:
+    """List tags for an image, or None when the registry cannot be reached."""
     repo, _ = dockerops._split_image(image)
     repo = repo.split("@", 1)[0]
+    if _docker_hub_repo(repo):
+        return _hub_tags(repo, name_filter)
+
     first, sep, rest = repo.partition("/")
     if not sep or ("." not in first and ":" not in first and first != "localhost"):
         host, name = "registry-1.docker.io", repo
@@ -73,8 +164,9 @@ def _registry_tags(image: str) -> list[str] | None:
     else:
         host, name = first, rest
 
+    key = f"registry:{repo}:{name_filter}"
     with _tag_lock:
-        cached = _tag_cache.get(repo)
+        cached = _tag_cache.get(key)
         if cached and time.time() - cached[0] < TAGS_TTL:
             return cached[1]
 
@@ -107,7 +199,7 @@ def _registry_tags(image: str) -> list[str] | None:
         return None
 
     with _tag_lock:
-        _tag_cache[repo] = (time.time(), tags)
+        _tag_cache[key] = (time.time(), tags)
     return tags
 
 
@@ -141,6 +233,21 @@ def _aliases(image: str) -> list[str]:
     return names
 
 
+def _remote_digest(image: str, tag: str) -> str:
+    """Return the registry digest without spending a Docker Hub pull."""
+    if "@" in image:
+        return _digest(image.rsplit("@", 1)[-1])
+
+    repo, _ = dockerops._split_image(image)
+    repo = repo.split("@", 1)[0]
+    if _docker_hub_repo(repo):
+        digest = _hub_tag_digest(repo, tag)
+        if digest is None:
+            raise _Unavailable("Docker Hub metadata unavailable")
+        return digest
+    return _digest(dockerops.client.images.get_registry_data(image).id)
+
+
 def _check_all() -> None:
     results: dict[str, dict] = {}
     try:
@@ -160,8 +267,9 @@ def _check_all() -> None:
         }
 
     for image, info in targets.items():
+        tag = _image_tag(image)
         try:
-            remote = _digest(dockerops.client.images.get_registry_data(image).id)
+            remote = _remote_digest(image, tag)
             local = {_digest(value) for value in info["local"]}
             if not local:
                 result = _result("unknown", "Unknown", "", "No local image digest to compare")
@@ -176,6 +284,8 @@ def _check_all() -> None:
                     "update",
                     f"local {_short(next(iter(local)))} / registry {_short(remote)}",
                 )
+        except _Unavailable as exc:
+            result = _result("unknown", "Cannot check", "", str(exc))
         except Exception as exc:
             message = str(exc).lower()
             if any(word in message for word in ("unauthorized", "denied", "not found", "403", "401", "404")):
@@ -183,11 +293,10 @@ def _check_all() -> None:
             else:
                 result = _result("error", "Check failed", "no", str(exc)[:200])
 
-        tag = _image_tag(image)
         parsed = _parse_version(tag)
         if parsed:
             current, display = parsed
-            tags = _registry_tags(image)
+            tags = _registry_tags(image, f"{current[0]}.{current[1]}")
             if tags is None:
                 result = _result(
                     result["state"],
