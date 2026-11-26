@@ -195,7 +195,9 @@ def dashboard(request: Request):
     schedule_coverage = scheduler.coverage(containers)
     for container in containers:
         container["image_version"] = image_updates.image_version(
-            container.get("configured_image") or container.get("image") or ""
+            container.get("configured_image") or container.get("image") or "",
+            labels=container.get("image_labels"),
+            digests=container.get("repo_digests"),
         )
         container["image_update"] = image_summary["states"].get(
             container["name"], image_updates.UNKNOWN
@@ -626,7 +628,12 @@ def container_detail(request: Request, name: str):
         detail = dockerops.container_details(name)
     except Exception as exc:
         return RedirectResponse(f"/?error={urllib.parse.quote(str(exc))}", status_code=302)
-    detail["image_version"] = image_updates.image_version(detail.get("image") or "")
+    detail["image_version"] = image_updates.image_version(
+        detail.get("image") or "",
+        labels=detail.get("image_labels"),
+        digests=detail.get("image_digests"),
+        image_id=detail.get("image_id") or "",
+    )
     return templates.TemplateResponse(
         request,
         "container_detail.html",

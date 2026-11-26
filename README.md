@@ -123,7 +123,7 @@ docker compose up -d
 
 ## Using it
 
-- **Containers** — click the container name to open its details; the table shows the image and its version. Images / Networks / Schedules still use the **Show** button.
+- **Containers** — click the container name to open its details; the table shows the image and its exact version (embedded image version when available, otherwise a digest for tags like `latest`). Images / Networks / Schedules still use the **Show** button.
 - **Container logs** — from a container page, use **View live logs** to load the latest 200 lines. Uncheck **Auto-update logs** to pause the live refresh, or use **Refresh now** for a one-off read.
 - **Bulk actions** — tick the checkboxes in Containers, Images or Networks, choose an action in the bar above the table, then apply it.
 - **Updates** — watch live container update progress, see the running/latest Dock.IO version, and check GitHub for a new release.

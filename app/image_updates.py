@@ -98,16 +98,50 @@ def _format_version(version: tuple[int, ...]) -> str:
     return ".".join(str(part) for part in version)
 
 
-def image_version(image: str) -> str:
-    """Return the version/tag part of an image reference for display."""
+VERSION_LABELS = (
+    "org.opencontainers.image.version",
+    "version",
+)
+GENERIC_TAGS = {"latest", "main", "master", "stable", "dev", "edge"}
+
+
+def image_version(
+    image: str,
+    labels: dict | None = None,
+    digests: list[str] | str | None = None,
+    image_id: str = "",
+) -> str:
+    """Return the most exact version available for an image reference.
+
+    An image's embedded version label wins over its tag, so ``:latest`` can
+    show the real version. If no version is available, a non-version tag falls
+    back to the image digest, which identifies the exact image contents.
+    """
     text = str(image or "").strip()
     if not text:
         return "-"
+
+    for key in VERSION_LABELS:
+        value = str((labels or {}).get(key) or "").strip()
+        if value and value.lower() not in GENERIC_TAGS:
+            return value
+
     if "@" in text:
         return f"digest {_short(_digest(text.rsplit('@', 1)[-1]))}"
+
     tag = _image_tag(text)
     parsed = _parse_version(tag)
-    return parsed[1] if parsed else (tag or "-")
+    if parsed:
+        return parsed[1]
+
+    candidates = [digests] if isinstance(digests, str) else list(digests or [])
+    if image_id:
+        candidates.append(image_id)
+    for candidate in candidates:
+        value = str(candidate or "").strip()
+        if value:
+            return f"digest {_short(_digest(value))}"
+    return tag or "-"
 
 
 def _hub_tag_digest(repo: str, tag: str) -> str | None:

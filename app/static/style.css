@@ -92,8 +92,15 @@ fieldset { border: 1px solid var(--line); border-radius: 6px; margin: 12px 0; }
 legend { color: var(--muted); font-size: 12px; }
 .checkboxes { max-height: 180px; overflow: auto; padding: 4px 10px; }
 main a { color: var(--accent); }
-main a.container-link { color: var(--text); text-decoration: none; }
-main a.container-link:hover { color: var(--text); text-decoration: underline; }
+main a.container-link,
+main a.container-link:visited,
+main a.container-link:hover,
+main a.container-link:focus,
+main a.container-link strong {
+  color: var(--text) !important;
+  text-decoration: none !important;
+  cursor: pointer;
+}
 .settings-layout { display: grid; grid-template-columns: 190px 1fr; gap: 20px; align-items: start; }
 .settings-sidebar { display: flex; flex-direction: column; gap: 6px; position: sticky; top: 20px; }
 .settings-sidebar button { text-align: left; background: transparent; }

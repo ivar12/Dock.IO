@@ -65,9 +65,12 @@ def list_containers() -> list[dict]:
 
         image = ""
         repo_digests = []
+        image_labels = {}
         try:
             if c.image:
-                repo_digests = (c.image.attrs or {}).get("RepoDigests") or []
+                image_attrs = c.image.attrs or {}
+                repo_digests = image_attrs.get("RepoDigests") or []
+                image_labels = (image_attrs.get("Config") or {}).get("Labels") or {}
                 if c.image.tags:
                     image = c.image.tags[0]
         except Exception:
@@ -88,6 +91,7 @@ def list_containers() -> list[dict]:
                 "image": image,
                 "configured_image": configured_image,
                 "repo_digests": repo_digests,
+                "image_labels": image_labels,
                 "image_missing": not bool(image),
                 "status": c.status,
                 "running": bool(state.get("Running")),
@@ -781,6 +785,12 @@ def container_details(name: str) -> dict:
     host = attrs.get("HostConfig") or {}
     state = attrs.get("State") or {}
     settings = attrs.get("NetworkSettings") or {}
+    image_info = {}
+    try:
+        if attrs.get("Image"):
+            image_info = api.inspect_image(attrs["Image"]) or {}
+    except Exception:
+        pass
     networks = []
     for net_name, endpoint in (settings.get("Networks") or {}).items():
         networks.append(
@@ -801,6 +811,8 @@ def container_details(name: str) -> dict:
         "health": (state.get("Health") or {}).get("Status"),
         "image": config.get("Image", ""),
         "image_id": attrs.get("Image", ""),
+        "image_labels": (image_info.get("Config") or {}).get("Labels") or {},
+        "image_digests": image_info.get("RepoDigests") or [],
         "created": attrs.get("Created", ""),
         "command": config.get("Cmd"),
         "entrypoint": config.get("Entrypoint"),
