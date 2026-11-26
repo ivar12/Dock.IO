@@ -25,14 +25,14 @@ WORK_PHASES = [
 ]
 
 
-def _history_hours() -> int:
+def _history_minutes() -> int:
     try:
-        return max(1, int(os.getenv("UPDATE_HISTORY_HOURS", "24")))
+        return max(1, int(os.getenv("UPDATE_HISTORY_MINUTES", "5")))
     except (TypeError, ValueError):
-        return 24
+        return 5
 
 
-JOB_HISTORY_HOURS = _history_hours()
+JOB_HISTORY_MINUTES = _history_minutes()
 
 
 def _new_job_id() -> str:
@@ -88,7 +88,7 @@ def run_sequence(names: list[str], actor: str) -> list[tuple[str, bool, str]]:
 
 def status() -> dict:
     """Snapshot of running and recently finished updates."""
-    db.delete_old_update_jobs(hours=JOB_HISTORY_HOURS)
+    db.delete_old_update_jobs(minutes=JOB_HISTORY_MINUTES)
     jobs = db.list_update_jobs(limit=50)
     active = []
     for job in jobs:
@@ -113,7 +113,7 @@ def status() -> dict:
         "jobs": jobs,
         "active": active,
         "total_steps": len(WORK_PHASES),
-        "history_hours": JOB_HISTORY_HOURS,
+        "history_minutes": JOB_HISTORY_MINUTES,
     }
 
 

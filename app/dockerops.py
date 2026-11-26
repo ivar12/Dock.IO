@@ -34,7 +34,7 @@ def _env_float(name: str, default: float, minimum: float, maximum: float) -> flo
 
 
 # A container is only reported as updated once it stays in a good state.
-VERIFY_TIMEOUT = _env_float("UPDATE_VERIFY_TIMEOUT", 60.0, 1.0, 900.0)
+VERIFY_TIMEOUT = _env_float("UPDATE_VERIFY_TIMEOUT", 15.0, 1.0, 900.0)
 VERIFY_INTERVAL = _env_float("UPDATE_VERIFY_INTERVAL", 2.0, 0.25, 10.0)
 VERIFY_STABLE_CHECKS = _env_int("UPDATE_VERIFY_STABLE_CHECKS", 2)
 CREATE_ATTEMPTS = _env_int("UPDATE_CREATE_ATTEMPTS", 3)

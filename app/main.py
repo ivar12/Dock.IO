@@ -503,7 +503,7 @@ def updates_page(request: Request):
             "user": _user(request),
             "update_info": version.update_info(),
             "phases": updates.PHASE_LABELS,
-            "history_hours": updates.JOB_HISTORY_HOURS,
+            "history_minutes": updates.JOB_HISTORY_MINUTES,
         },
     )
 

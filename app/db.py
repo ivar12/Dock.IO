@@ -294,13 +294,13 @@ def finish_self_update_jobs(container: str) -> None:
         )
 
 
-def delete_old_update_jobs(hours: int = 24) -> None:
+def delete_old_update_jobs(minutes: int = 5) -> None:
     with connection() as conn:
         conn.execute(
             """DELETE FROM update_jobs
                WHERE finished_at IS NOT NULL
                  AND finished_at < datetime('now', ?)""",
-            (f"-{hours} hours",),
+            (f"-{minutes} minutes",),
         )
 
 

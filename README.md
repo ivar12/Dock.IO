@@ -13,7 +13,7 @@
 
 - **Manage containers** — start, stop, restart, and update them from the browser.
 - **Update safely** — pull a new image, skip the recreate if the image is unchanged, then recreate with a retry, confirm the new container is stable and healthy, and roll back to the previous image if the check fails. The old image is removed only when no other container needs it.
-- **See update progress** — manual and scheduled updates are tracked phase by phase on the **Updates** page, including a container check before completion. Finished results stay visible for 24 hours.
+- **See update progress** — manual and scheduled updates are tracked phase by phase on the **Updates** page, including a container check before completion. Finished results stay visible for 5 minutes.
 - **Check image freshness** — each container shows up-to-date / update-available labels, and the container stats show how many updates are available. Use **Check image updates** to refresh the digest comparison. Docker Hub images are checked through Hub's metadata API, so checks do not consume the registry pull quota; other registries use the Docker daemon.
 - **Bulk actions** — select multiple containers to start/stop/restart/update, or multiple images/networks to delete at once.
 - **Light and dark mode** — switch from the header; the choice is remembered in the browser.
@@ -49,7 +49,7 @@ Edit `.env` before starting:
 
 - Set `SESSION_SECRET` to a random value: `python3 -c "import secrets; print(secrets.token_hex(32))"`
 - If you enable OIDC, set `OIDC_REDIRECT_URL` to your public `/auth/callback` URL and fill in your provider's values.
-- Optional: `UPDATE_VERIFY_TIMEOUT` (default `60` seconds), `UPDATE_VERIFY_INTERVAL` (default `2` seconds), `UPDATE_VERIFY_STABLE_CHECKS` (default `2`), `UPDATE_CREATE_ATTEMPTS` (default `3`) and `UPDATE_HISTORY_HOURS` (default `24`) tune the post-update container check, recreate retries and how long results remain on the Updates page.
+- Optional: `UPDATE_VERIFY_TIMEOUT` (default `15` seconds), `UPDATE_VERIFY_INTERVAL` (default `2` seconds), `UPDATE_VERIFY_STABLE_CHECKS` (default `2`), `UPDATE_CREATE_ATTEMPTS` (default `3`) and `UPDATE_HISTORY_MINUTES` (default `5`) tune the post-update container check, recreate retries and how long results remain on the Updates page.
 
 No admin password hash is needed. On the first launch the app opens a **first-run setup** page where you create the administrator account from the browser; the password is bcrypt-hashed and stored in the app database. Additional users and roles are managed under **Settings → Users**.
 
