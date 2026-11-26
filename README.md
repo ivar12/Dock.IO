@@ -12,8 +12,8 @@
 ## What it does
 
 - **Manage containers** — start, stop, restart, and update them from the browser.
-- **Update safely** — pull a new image, verify the recreated container uses that exact image, restore its running state, and remove the superseded image when no other container needs it.
-- **See update progress** — manual and scheduled updates are tracked phase by phase on the **Updates** page; finished jobs leave the live list.
+- **Update safely** — pull a new image, skip the recreate if the image is unchanged, then recreate with a retry, confirm the new container is stable and healthy, and roll back to the previous image if the check fails. The old image is removed only when no other container needs it.
+- **See update progress** — manual and scheduled updates are tracked phase by phase on the **Updates** page, including a container check before completion. Finished results stay visible for 24 hours.
 - **Check image freshness** — each container shows up-to-date / update-available labels, and the container stats show how many updates are available. Use **Check image updates** to refresh the digest comparison. Docker Hub images are checked through Hub's metadata API, so checks do not consume the registry pull quota; other registries use the Docker daemon.
 - **Bulk actions** — select multiple containers to start/stop/restart/update, or multiple images/networks to delete at once.
 - **Light and dark mode** — switch from the header; the choice is remembered in the browser.
@@ -49,6 +49,7 @@ Edit `.env` before starting:
 
 - Set `SESSION_SECRET` to a random value: `python3 -c "import secrets; print(secrets.token_hex(32))"`
 - If you enable OIDC, set `OIDC_REDIRECT_URL` to your public `/auth/callback` URL and fill in your provider's values.
+- Optional: `UPDATE_VERIFY_TIMEOUT` (default `60` seconds), `UPDATE_VERIFY_INTERVAL` (default `2` seconds), `UPDATE_VERIFY_STABLE_CHECKS` (default `2`), `UPDATE_CREATE_ATTEMPTS` (default `3`) and `UPDATE_HISTORY_HOURS` (default `24`) tune the post-update container check, recreate retries and how long results remain on the Updates page.
 
 No admin password hash is needed. On the first launch the app opens a **first-run setup** page where you create the administrator account from the browser; the password is bcrypt-hashed and stored in the app database. Additional users and roles are managed under **Settings → Users**.
 
@@ -125,7 +126,7 @@ docker compose up -d
 - **Containers / Images / Networks / Schedules** — use the **Show** button in each row for details.
 - **Bulk actions** — tick the checkboxes in Containers, Images or Networks, choose an action in the bar above the table, then apply it.
 - **Updates** — watch live container update progress, see the running/latest Dock.IO version, and check GitHub for a new release.
-- **Self-update** — Dock.IO can update its own container. It pulls the new image, then a short-lived helper container recreates and restarts it; the app is unavailable for a few seconds. The Docker socket must be mounted (as it is in the supplied `docker-compose.yml`). The first upgrade from an older version still needs a manual `docker compose pull && docker compose up -d`.
+- **Self-update** — Dock.IO can update its own container. It pulls the new image, then a short-lived helper container recreates, restarts and checks it before marking the update complete; the app is unavailable for a few seconds. The Docker socket must be mounted (as it is in the supplied `docker-compose.yml`). The first upgrade from an older version still needs a manual `docker compose pull && docker compose up -d`.
 - **Schedules** — create, run now, pause, edit, show, or delete from the list or detail page. Cron is 5-field; APScheduler weekdays are `0=Monday … 6=Sunday`.
 - **Settings** — admin-only, with **Overview**, **Users**, and **Security** sections. Application info appears directly under the Overview stats.
 - **Roles** — `admin` can access Settings; `user` cannot. The first account created in the web UI is an admin.

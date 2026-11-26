@@ -6,6 +6,7 @@ import inspect
 import json
 import os
 import secrets
+import time
 
 import docker
 
@@ -13,6 +14,27 @@ client = docker.from_env()
 api = client.api
 
 SELF_NAME = os.getenv("SELF_CONTAINER", "dockio")
+
+
+def _env_int(name: str, default: int, minimum: int = 1) -> int:
+    try:
+        return max(minimum, int(os.getenv(name, str(default))))
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_float(name: str, default: float, minimum: float, maximum: float) -> float:
+    try:
+        return min(maximum, max(minimum, float(os.getenv(name, str(default)))))
+    except (TypeError, ValueError):
+        return default
+
+
+# A container is only reported as updated once it stays in a good state.
+VERIFY_TIMEOUT = _env_float("UPDATE_VERIFY_TIMEOUT", 60.0, 1.0, 900.0)
+VERIFY_INTERVAL = _env_float("UPDATE_VERIFY_INTERVAL", 2.0, 0.25, 10.0)
+VERIFY_STABLE_CHECKS = _env_int("UPDATE_VERIFY_STABLE_CHECKS", 2)
+CREATE_ATTEMPTS = _env_int("UPDATE_CREATE_ATTEMPTS", 3)
 OPT_OUT_LABELS = (
     "dockio.update",
     "com.centurylinklabs.watchtower.enable",
@@ -165,6 +187,7 @@ def _delegate_self_update(
     new_image_id: str,
     create_kwargs: dict,
     was_running: bool,
+    was_paused: bool = False,
     job_id: str = "",
     progress=None,
 ) -> tuple[bool, str]:
@@ -187,6 +210,10 @@ def _delegate_self_update(
         "new_image": new_image_id,
         "old_image": old_image_id,
         "was_running": bool(was_running),
+        "was_paused": bool(was_paused),
+        "verify_timeout": VERIFY_TIMEOUT,
+        "verify_interval": VERIFY_INTERVAL,
+        "verify_stable_checks": VERIFY_STABLE_CHECKS,
         "job_id": job_id,
     }
     helper_host = {
@@ -271,38 +298,232 @@ def _cleanup_old_image(old_image_id: str, container_name: str, new_image_id: str
     return ""
 
 
+def _remove_if_exists(name: str) -> tuple[bool, str]:
+    """Remove a container by name, treating an already-absent container as ok."""
+    try:
+        api.remove_container(name, force=True)
+    except docker.errors.NotFound:
+        pass
+    except Exception as exc:
+        return False, str(exc)
+    return True, ""
+
+
+def _create_and_start(
+    create_kwargs: dict, was_running: bool, was_paused: bool = False
+) -> tuple[bool, str]:
+    """Create (and optionally start) the container, retrying transient conflicts."""
+    name = create_kwargs.get("name", "")
+    last_error = ""
+    for attempt in range(CREATE_ATTEMPTS):
+        try:
+            created = api.create_container(**create_kwargs)
+            container_id = created["Id"]
+            if was_running:
+                api.start(container_id)
+            if was_paused:
+                api.pause(container_id)
+            return True, ""
+        except Exception as exc:
+            last_error = str(exc)
+            # A failed start can leave a created container behind; clear it so the
+            # next attempt (and any rollback) can reuse the original name.
+            _remove_if_exists(name)
+            if attempt + 1 < CREATE_ATTEMPTS:
+                time.sleep(1 + attempt)
+    return False, last_error
+
+
+def recreate_container(
+    create_kwargs: dict, was_running: bool, was_paused: bool = False
+) -> tuple[bool, str]:
+    """Replace the named container using the supplied create configuration."""
+    name = create_kwargs.get("name", "")
+    ok, error = _remove_if_exists(name)
+    if not ok:
+        return False, f"{name}: could not remove old container: {error}"
+    return _create_and_start(create_kwargs, was_running, was_paused)
+
+
+def _restart_count(name: str, default: int | None = 0) -> int | None:
+    try:
+        state = (api.inspect_container(name) or {}).get("State") or {}
+        return int(state.get("RestartCount") or 0)
+    except Exception:
+        return default
+
+
+def _state_ok(
+    info: dict,
+    was_running: bool,
+    was_paused: bool,
+    expected_image_id: str,
+    baseline_restarts: int | None,
+) -> tuple[bool, str]:
+    state = info.get("State") or {}
+    image_id = info.get("Image") or ""
+    restarts = int(state.get("RestartCount") or 0)
+
+    if expected_image_id and image_id != expected_image_id:
+        return False, f"uses image {_short_id(image_id)}, expected {_short_id(expected_image_id)}"
+    if state.get("Dead"):
+        return False, "container is dead"
+    if state.get("Restarting") or state.get("Status") == "restarting":
+        return False, "container is restarting"
+    if baseline_restarts is not None and restarts > baseline_restarts:
+        return False, f"restarted {restarts - baseline_restarts} time(s) during the check"
+
+    # Health only matters for a running, unpaused container; a stopped or
+    # paused container cannot report a fresh healthy result.
+    health = (state.get("Health") or {}).get("Status")
+    if was_running and not was_paused and health and health != "healthy":
+        return False, f"health check is {health}"
+
+    if was_running:
+        if not state.get("Running"):
+            return False, f"container is {state.get('Status') or 'not running'}"
+        if bool(state.get("Paused")) != bool(was_paused):
+            return False, "container is unexpectedly paused" if state.get("Paused") else "container is not paused"
+    elif state.get("Running"):
+        return False, "container started even though it was stopped before the update"
+    return True, "ok"
+
+
+def _state_description(info: dict, was_running: bool, was_paused: bool) -> str:
+    state = info.get("State") or {}
+    health = (state.get("Health") or {}).get("Status")
+    parts = ["running" if was_running else "stopped"]
+    if was_paused:
+        parts.append("paused")
+    if health:
+        parts.append(health)
+    return ", ".join(parts)
+
+
+def verify_container(
+    name: str,
+    expected_image_id: str = "",
+    was_running: bool = True,
+    was_paused: bool = False,
+    progress=None,
+    timeout: float | None = None,
+    interval: float | None = None,
+    stable_checks: int | None = None,
+    baseline_restarts: int | None = None,
+) -> tuple[bool, str]:
+    """Wait until the container is running and healthy, not merely started."""
+    timeout = VERIFY_TIMEOUT if timeout is None else max(1.0, float(timeout))
+    interval = VERIFY_INTERVAL if interval is None else min(10.0, max(0.25, float(interval)))
+    stable_checks = VERIFY_STABLE_CHECKS if stable_checks is None else max(1, int(stable_checks))
+    if baseline_restarts is None:
+        baseline_restarts = _restart_count(name, default=None)
+
+    deadline = time.monotonic() + timeout
+    stable = 0
+    last = "not checked yet"
+    info: dict = {}
+    while True:
+        try:
+            info = api.inspect_container(name) or {}
+            ok, last = _state_ok(
+                info, was_running, was_paused, expected_image_id, baseline_restarts
+            )
+        except Exception as exc:
+            ok, last = False, f"inspect failed: {exc}"
+        stable = stable + 1 if ok else 0
+        if stable >= stable_checks:
+            detail = _state_description(info, was_running, was_paused)
+            return True, f"{name}: verified {detail}, image {_short_id(info.get('Image'))}"
+        if time.monotonic() >= deadline:
+            break
+        _report(progress, "verifying", f"Checking {name}: {last}")
+        time.sleep(interval)
+    return False, f"{name}: not ready after {timeout:g}s ({last})"
+
+
+def restore_container(
+    name: str,
+    create_kwargs: dict,
+    old_image_id: str,
+    was_running: bool,
+    was_paused: bool = False,
+    progress=None,
+) -> tuple[bool, str]:
+    """Put the previous image/container back after a failed update."""
+    if not old_image_id:
+        return False, f"{name}: cannot roll back, previous image id is unknown"
+    _report(progress, "recreating", f"Rolling {name} back to the previous image")
+    restore = dict(create_kwargs)
+    restore["image"] = old_image_id
+    ok, error = recreate_container(restore, was_running, was_paused)
+    if not ok:
+        return False, f"{name}: rollback failed: {error}"
+    ok, detail = verify_container(
+        name,
+        expected_image_id=old_image_id,
+        was_running=was_running,
+        was_paused=was_paused,
+        progress=progress,
+    )
+    if not ok:
+        return False, f"{name}: rollback container is not healthy: {detail}"
+    return True, f"{name}: restored previous container ({detail})"
+
+
 def update_container(
     name: str, progress=None, job_id: str = ""
-) -> tuple[bool, str]:
-    """Pull the configured image and recreate the container with the same config."""
+) -> tuple[bool, str, bool]:
+    """Pull the configured image and recreate the container with the same config.
+
+    Returns ``(ok, detail, delegated)``. ``delegated`` is True only when Dock.IO
+    handed its own recreate to the helper container, which finishes the job.
+    """
     _report(progress, "inspecting", f"Reading configuration of {name}")
     try:
         info = api.inspect_container(name)
     except Exception as exc:
-        return False, f"{name}: inspect failed: {exc}"
+        return False, f"{name}: inspect failed: {exc}", False
 
     old_image_id = info.get("Image") or ""
+    state = info.get("State") or {}
+    was_running = bool(state.get("Running"))
+    was_paused = bool(state.get("Paused"))
 
     cfg = info.get("Config") or {}
     host = info.get("HostConfig") or {}
     networks = info.get("NetworkSettings", {}).get("Networks", {}) or {}
     image = cfg.get("Image") or ""
     if not image:
-        return False, f"{name}: container has no image"
+        return False, f"{name}: container has no image", False
 
     ok, pull_msg = _pull(image, progress=progress)
     if not ok:
-        return False, f"{name}: {pull_msg}"
+        return False, f"{name}: {pull_msg}", False
 
     try:
         new_image_id = (api.inspect_image(image) or {}).get("Id", "")
     except Exception as exc:
-        return False, f"{name}: cannot inspect pulled image: {exc}"
+        return False, f"{name}: cannot inspect pulled image: {exc}", False
     if new_image_id:
         _report(progress, "pulling", f"Using image {_short_id(new_image_id)}")
 
-    state = info.get("State") or {}
-    was_running = bool(state.get("Running"))
+    if new_image_id and old_image_id and new_image_id == old_image_id:
+        # No new image: do not recreate unnecessarily, but still confirm the
+        # existing container is in a good state before calling this complete.
+        _report(progress, "verifying", "Image unchanged; checking current container")
+        ok, detail = verify_container(
+            name,
+            expected_image_id=old_image_id,
+            was_running=was_running,
+            was_paused=was_paused,
+            progress=progress,
+        )
+        if not ok:
+            return False, detail, False
+        return True, (
+            f"{name}: already using image {_short_id(old_image_id)} "
+            f"({pull_msg}); {detail}"
+        ), False
 
     host_cfg = dict(host)
     custom_nets = [
@@ -331,8 +552,9 @@ def update_container(
     }
 
     if custom_nets and not network_mode.startswith("container:"):
-        # Re-attach with the original aliases / static IPs instead of relying on NetworkMode.
-        host_cfg["NetworkMode"] = None
+        # Re-attach with the original aliases / static IPs. NetworkMode has to
+        # be removed, not set to null, or Docker rejects the create call.
+        host_cfg.pop("NetworkMode", None)
         netcfg = {}
         for net_name in custom_nets:
             endpoint = networks[net_name] or {}
@@ -345,39 +567,63 @@ def update_container(
 
     create_kwargs = _supported_kwargs(api.create_container, create_kwargs)
 
-    if name == SELF_NAME:
-        return _delegate_self_update(
-            info, name, image, old_image_id, new_image_id,
-            create_kwargs, was_running, job_id=job_id, progress=progress,
+    def rollback(reason: str) -> tuple[bool, str, bool]:
+        rb_ok, rb_msg = restore_container(
+            name, create_kwargs, old_image_id, was_running, was_paused,
+            progress=progress,
         )
+        suffix = rb_msg if rb_ok else f"ROLLBACK FAILED: {rb_msg}"
+        return False, f"{reason}; {suffix}", False
+
+    if name == SELF_NAME:
+        ok, msg = _delegate_self_update(
+            info, name, image, old_image_id, new_image_id,
+            create_kwargs, was_running, was_paused, job_id=job_id,
+            progress=progress,
+        )
+        return ok, msg, ok
 
     _report(progress, "recreating", f"Recreating {name}")
-    try:
-        api.remove_container(name, force=True)
-        created = api.create_container(**create_kwargs)
-        container_id = created["Id"]
-        if was_running:
-            _report(progress, "starting", f"Starting {name}")
-            api.start(container_id)
-    except Exception as exc:
-        return False, f"{name}: recreate failed: {exc}"
+    ok, error = recreate_container(create_kwargs, was_running, was_paused)
+    if not ok:
+        return rollback(f"{name}: recreate failed: {error}")
+
+    if was_running:
+        _report(progress, "starting", f"Started {name}")
 
     try:
-        current_image_id = (api.inspect_container(name) or {}).get("Image", "")
+        current_info = api.inspect_container(name) or {}
     except Exception as exc:
-        return False, f"{name}: cannot verify new container image: {exc}"
+        return rollback(f"{name}: cannot inspect new container: {exc}")
+    current_image_id = current_info.get("Image") or ""
     if new_image_id and current_image_id != new_image_id:
-        return False, (
+        return rollback(
             f"{name}: container uses {_short_id(current_image_id)} "
             f"instead of pulled image {_short_id(new_image_id)}"
         )
 
+    baseline = _restart_count(name, 0)
+    ok, verify_detail = verify_container(
+        name,
+        expected_image_id=new_image_id or current_image_id,
+        was_running=was_running,
+        was_paused=was_paused,
+        progress=progress,
+        baseline_restarts=baseline,
+    )
+    if not ok:
+        return rollback(verify_detail)
+    _report(progress, "verifying", verify_detail)
+
     _report(progress, "cleanup", "Switching to the pulled image and removing the old image")
     cleanup = _cleanup_old_image(old_image_id, name, new_image_id)
-    detail = f"{name}: updated to image {_short_id(current_image_id or new_image_id)} ({pull_msg})"
+    detail = (
+        f"{name}: updated to image {_short_id(current_image_id or new_image_id)} "
+        f"({pull_msg}); {verify_detail}"
+    )
     if cleanup:
         detail += f"; {cleanup}"
-    return True, detail
+    return True, detail, False
 
 
 def select_targets(mode: str, explicit: list[str] | None = None) -> list[str]:
@@ -403,7 +649,7 @@ def apply_updates(
 ) -> list[tuple[str, bool, str]]:
     results = []
     for name in names:
-        ok, msg = update_container(name)
+        ok, msg, _delegated = update_container(name)
         results.append((name, ok, msg))
         db_side_effect(actor, name, ok, msg)
     return results

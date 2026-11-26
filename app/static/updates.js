@@ -31,6 +31,7 @@
       '<span class="muted small-text">' + percent + "%</span></td>" +
       '<td class="mono wrap">' + esc(job.detail || "-") + "</td>" +
       '<td class="mono small-text">' + esc(job.started_display || shortTime(job.started_at)) + "</td>" +
+      '<td class="mono small-text">' + esc(job.finished_display || "-") + "</td>" +
       '<td class="small-text">' + esc(job.actor) + "</td>" +
       "</tr>"
     );
@@ -42,7 +43,7 @@
     }
     var jobs = data.jobs || [];
     if (!jobs.length) {
-      tbody.innerHTML = '<tr><td colspan="6" class="muted">No updates are running.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="muted">No recent updates.</td></tr>';
       return;
     }
     tbody.innerHTML = jobs.map(row).join("");

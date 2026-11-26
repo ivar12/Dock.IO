@@ -28,6 +28,17 @@ def main() -> None:
 
     job_id = payload.get("job_id") or ""
     new_image = payload.get("new_image") or ""
+    old_image = payload.get("old_image") or ""
+    was_running = bool(payload.get("was_running", True))
+    was_paused = bool(payload.get("was_paused", False))
+
+    def progress(phase: str, detail: str = "") -> None:
+        if not job_id:
+            return
+        try:
+            db.set_update_job(job_id, phase, detail)
+        except Exception as exc:
+            print(f"could not record progress: {exc}", flush=True)
 
     def finish(phase: str, detail: str, ok: bool) -> None:
         if job_id:
@@ -36,46 +47,46 @@ def main() -> None:
             except Exception as exc:
                 print(f"could not record job status: {exc}", flush=True)
 
+    def rollback(reason: str) -> str:
+        rb_ok, rb_msg = dockerops.restore_container(
+            target, create, old_image, was_running, was_paused, progress=progress
+        )
+        detail = f"{reason}; {rb_msg if rb_ok else f'ROLLBACK FAILED: {rb_msg}'}"
+        finish("failed", detail, False)
+        return detail
+
     # Let the web request return before the app container is stopped.
     time.sleep(3)
 
-    try:
-        api.remove_container(target, force=True)
-    except docker.errors.NotFound:
-        pass
-
-    error = ""
-    for attempt in range(3):
-        try:
-            created = api.create_container(**create)
-            if payload.get("was_running"):
-                api.start(created["Id"])
-            break
-        except Exception as exc:
-            error = str(exc)
-            time.sleep(1 + attempt)
-    else:
-        message = f"{target}: self-update recreate failed: {error}"
-        finish("failed", message, False)
+    ok, error = dockerops.recreate_container(create, was_running, was_paused)
+    if not ok:
+        message = rollback(f"{target}: self-update recreate failed: {error}")
         raise RuntimeError(message)
 
-    current = (api.inspect_container(target) or {}).get("Image", "")
-    if new_image and current != new_image:
-        message = (
-            f"{target}: container uses {dockerops._short_id(current)} "
-            f"instead of pulled image {dockerops._short_id(new_image)}"
-        )
-        finish("failed", message, False)
+    baseline = dockerops._restart_count(target, 0)
+    ok, detail = dockerops.verify_container(
+        target,
+        expected_image_id=new_image,
+        was_running=was_running,
+        was_paused=was_paused,
+        progress=progress,
+        timeout=payload.get("verify_timeout"),
+        interval=payload.get("verify_interval"),
+        stable_checks=payload.get("verify_stable_checks"),
+        baseline_restarts=baseline,
+    )
+    if not ok:
+        message = rollback(detail)
         raise RuntimeError(message)
 
-    cleanup = dockerops._cleanup_old_image(payload.get("old_image") or "", target, new_image)
-    detail = (
+    cleanup = dockerops._cleanup_old_image(old_image, target, new_image)
+    finished = (
         f"{target}: self-update complete, image "
-        f"{dockerops._short_id(current or new_image)}"
+        f"{dockerops._short_id(new_image)}; {detail}"
         + (f"; {cleanup}" if cleanup else "")
     )
-    finish("done", detail, True)
-    print(detail, flush=True)
+    finish("done", finished, True)
+    print(finished, flush=True)
 
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ SESSION_HTTPS_ONLY = os.getenv("SESSION_HTTPS_ONLY", "true").lower() in ("1", "t
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init_db()
-    db.finish_self_update_jobs(dockerops.SELF_NAME)
+    updates.reconcile_after_restart()
     scheduler.start()
     version.refresh()
     image_updates.refresh()
@@ -498,6 +498,7 @@ def updates_page(request: Request):
             "user": _user(request),
             "update_info": version.update_info(),
             "phases": updates.PHASE_LABELS,
+            "history_hours": updates.JOB_HISTORY_HOURS,
         },
     )
 
