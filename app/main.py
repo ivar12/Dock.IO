@@ -540,20 +540,9 @@ def images_page(request: Request):
     )
 
 
-@app.post("/images/{image_id:path}/delete")
-def image_delete(request: Request, image_id: str):
-    if redirect := _need_login(request):
-        return redirect
-    try:
-        msg = dockerops.delete_image(image_id)
-        db.log_action(_user(request), "delete image", msg)
-        target = f"/images?msg={urllib.parse.quote(msg)}"
-    except Exception as exc:
-        db.log_action(_user(request), "delete image failed", str(exc))
-        target = f"/images?error={urllib.parse.quote(str(exc))}"
-    return RedirectResponse(target, status_code=303)
-
-
+# Register the bulk route before the catch-all single-image route: Starlette
+# matches in order, and "/images/{image_id:path}/delete" also matches
+# "/images/bulk/delete" (with image_id="bulk").
 @app.post("/images/bulk/delete")
 def bulk_images_delete(request: Request, ids: list[str] = Form([])):
     if redirect := _need_login(request):
@@ -569,6 +558,20 @@ def bulk_images_delete(request: Request, ids: list[str] = Form([])):
     text = "; ".join(ok + failed) or "No images selected"
     kind = "error" if failed else "msg"
     return RedirectResponse(f"/images?{kind}={urllib.parse.quote(text)}", status_code=303)
+
+
+@app.post("/images/{image_id:path}/delete")
+def image_delete(request: Request, image_id: str):
+    if redirect := _need_login(request):
+        return redirect
+    try:
+        msg = dockerops.delete_image(image_id)
+        db.log_action(_user(request), "delete image", msg)
+        target = f"/images?msg={urllib.parse.quote(msg)}"
+    except Exception as exc:
+        db.log_action(_user(request), "delete image failed", str(exc))
+        target = f"/images?error={urllib.parse.quote(str(exc))}"
+    return RedirectResponse(target, status_code=303)
 
 
 # -------------------------------------------------------------------- networks
@@ -588,20 +591,6 @@ def networks_page(request: Request):
     )
 
 
-@app.post("/networks/{network_id}/delete")
-def network_delete(request: Request, network_id: str):
-    if redirect := _need_login(request):
-        return redirect
-    try:
-        msg = dockerops.delete_network(network_id)
-        db.log_action(_user(request), "delete network", msg)
-        target = f"/networks?msg={urllib.parse.quote(msg)}"
-    except Exception as exc:
-        db.log_action(_user(request), "delete network failed", str(exc))
-        target = f"/networks?error={urllib.parse.quote(str(exc))}"
-    return RedirectResponse(target, status_code=303)
-
-
 @app.post("/networks/bulk/delete")
 def bulk_networks_delete(request: Request, ids: list[str] = Form([])):
     if redirect := _need_login(request):
@@ -617,6 +606,20 @@ def bulk_networks_delete(request: Request, ids: list[str] = Form([])):
     text = "; ".join(ok + failed) or "No networks selected"
     kind = "error" if failed else "msg"
     return RedirectResponse(f"/networks?{kind}={urllib.parse.quote(text)}", status_code=303)
+
+
+@app.post("/networks/{network_id}/delete")
+def network_delete(request: Request, network_id: str):
+    if redirect := _need_login(request):
+        return redirect
+    try:
+        msg = dockerops.delete_network(network_id)
+        db.log_action(_user(request), "delete network", msg)
+        target = f"/networks?msg={urllib.parse.quote(msg)}"
+    except Exception as exc:
+        db.log_action(_user(request), "delete network failed", str(exc))
+        target = f"/networks?error={urllib.parse.quote(str(exc))}"
+    return RedirectResponse(target, status_code=303)
 
 
 # ------------------------------------------------------------------------ detail views
