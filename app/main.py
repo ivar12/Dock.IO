@@ -327,10 +327,16 @@ def container_action(
         return redirect
     try:
         msg = dockerops.action(name, act)
+        kind = "msg"
     except Exception as exc:
         msg = f"{name}: {act} failed - {exc}"
+        kind = "error"
     db.log_action(_user(request), f"{act} container", msg)
-    return RedirectResponse(_safe_next(next, "/"), status_code=303)
+    target = _safe_next(next, "/")
+    separator = "&" if "?" in target else "?"
+    return RedirectResponse(
+        f"{target}{separator}{kind}={urllib.parse.quote(msg)}", status_code=303
+    )
 
 
 @app.post("/container/{name}/update")
@@ -640,7 +646,12 @@ def container_detail(request: Request, name: str):
     return templates.TemplateResponse(
         request,
         "container_detail.html",
-        {"user": _user(request), "detail": detail},
+        {
+            "user": _user(request),
+            "detail": detail,
+            "msg": request.query_params.get("msg", ""),
+            "error": request.query_params.get("error", ""),
+        },
     )
 
 

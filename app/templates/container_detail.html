@@ -2,6 +2,8 @@
 {% block title %}{{ detail.name }} - Dock.IO{% endblock %}
 {% block content %}
 <p class="muted"><a href="/">← Containers</a></p>
+{% if msg %}<p class="alert ok">{{ msg }}</p>{% endif %}
+{% if error %}<p class="alert warn">{{ error }}</p>{% endif %}
 <h1>{{ detail.name }}</h1>
 
 <div class="stats">
