@@ -72,7 +72,7 @@
 ] %}{% include '_bulk_bar.html' %}{% endwith %}
 
 <table class="selectable-table">
-  <thead><tr><th></th><th>Name</th><th>Image</th><th>Status</th><th>Image update</th><th>Auto-update</th><th>Actions</th></tr></thead>
+  <thead><tr><th></th><th>Name</th><th>Image</th><th>Version</th><th>Status</th><th>Image update</th><th>Auto-update</th><th>Actions</th></tr></thead>
   <tbody>
   {% for c in containers %}
     {% if c.health == 'unhealthy' %}{% set status_filter = 'unhealthy' %}
@@ -80,13 +80,14 @@
     {% else %}{% set status_filter = 'stopped' %}{% endif %}
     <tr data-filter-item data-status="{{ status_filter }}" data-update="{{ c.update_filter }}"
         data-image-update="{{ c.image_update.state }}"
-        data-search="{{ (c.name ~ ' ' ~ (c.image or '') ~ ' ' ~ c.status ~ ' ' ~ (c.health or '') ~ ' ' ~ c.update_text ~ ' ' ~ c.image_update.label) | lower | e }}">
+        data-search="{{ (c.name ~ ' ' ~ (c.image or '') ~ ' ' ~ (c.image_version or '') ~ ' ' ~ c.status ~ ' ' ~ (c.health or '') ~ ' ' ~ c.update_text ~ ' ' ~ c.image_update.label) | lower | e }}">
       <td><input type="checkbox" data-bulk-item form="bulk-containers-form" name="names" value="{{ c.name }}" aria-label="Select {{ c.name }}"></td>
       <td>
-        <strong>{{ c.name }}</strong>
+        <a class="container-link" href="/container/{{ c.name }}"><strong>{{ c.name }}</strong></a>
         {% if c.is_self %}<span class="tag">this app</span>{% endif %}
       </td>
       <td class="mono">{{ c.image if c.image else '-' }}</td>
+      <td class="mono">{{ c.image_version or '-' }}</td>
       <td>
         <span class="dot {{ 'up' if c.running else 'down' }}"></span>{{ c.status }}
         {% if c.health %}<span class="tag {{ 'no' if c.health == 'unhealthy' else '' }}">{{ c.health }}</span>{% endif %}
@@ -101,7 +102,6 @@
         <span class="tag {{ 'yes' if c.update_filter == 'selected' else ('update' if c.update_filter == 'no-schedule' else '') }}" title="{{ schedule_tip }}">{{ c.update_text }}</span>
       </td>
       <td class="actions">
-        <a class="button small" href="/container/{{ c.name }}">Show</a>
         {% if c.running %}
           <form method="post" action="/container/{{ c.name }}/action"><input type="hidden" name="act" value="stop"><button class="small">Stop</button></form>
           <form method="post" action="/container/{{ c.name }}/action"><input type="hidden" name="act" value="restart"><button class="small">Restart</button></form>

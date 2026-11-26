@@ -5,10 +5,13 @@ from __future__ import annotations
 import inspect
 import json
 import os
+import re
 import secrets
 import time
 
 import docker
+
+from . import timefmt
 
 client = docker.from_env()
 api = client.api
@@ -812,6 +815,55 @@ def container_details(name: str) -> dict:
         "log_config": host.get("LogConfig") or {},
         "is_self": container.name == SELF_NAME,
     }
+
+
+_LOG_TIMESTAMP = re.compile(r"^(\d{4}-\d{2}-\d{2}T[^\s]+Z)\s*")
+
+
+def _decode_logs(raw, tty: bool) -> str:
+    """Decode Docker's multiplexed log frames into plain text."""
+    if isinstance(raw, str):
+        return raw
+    data = bytes(raw or b"")
+    if tty:
+        return data.decode("utf-8", "replace")
+
+    chunks = bytearray()
+    pos = 0
+    while pos + 8 <= len(data):
+        if data[pos] not in (1, 2):
+            return data.decode("utf-8", "replace")
+        size = int.from_bytes(data[pos + 4:pos + 8], "big")
+        if pos + 8 + size > len(data):
+            return data.decode("utf-8", "replace")
+        chunks += data[pos + 8:pos + 8 + size]
+        pos += 8 + size
+    if pos < len(data):
+        chunks += data[pos:]
+    return chunks.decode("utf-8", "replace")
+
+
+def _format_log_line(line: str) -> str:
+    match = _LOG_TIMESTAMP.match(line)
+    if not match:
+        return line
+    return f"{timefmt.format_time(match.group(1))} {line[match.end():]}"
+
+
+def container_logs(name: str, tail: int = 200) -> list[str]:
+    """Return recent container log lines with timestamps in the configured TZ."""
+    container = get_container(name)
+    tty = bool(((container.attrs or {}).get("Config") or {}).get("Tty"))
+    raw = api.logs(
+        container.id,
+        stdout=True,
+        stderr=True,
+        stream=False,
+        timestamps=True,
+        tail=str(max(1, min(1000, tail))),
+    )
+    text = _decode_logs(raw, tty)
+    return [_format_log_line(line)[:4000] for line in text.splitlines()[-tail:]]
 
 
 def image_details(identifier: str) -> dict:

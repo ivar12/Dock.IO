@@ -98,6 +98,18 @@ def _format_version(version: tuple[int, ...]) -> str:
     return ".".join(str(part) for part in version)
 
 
+def image_version(image: str) -> str:
+    """Return the version/tag part of an image reference for display."""
+    text = str(image or "").strip()
+    if not text:
+        return "-"
+    if "@" in text:
+        return f"digest {_short(_digest(text.rsplit('@', 1)[-1]))}"
+    tag = _image_tag(text)
+    parsed = _parse_version(tag)
+    return parsed[1] if parsed else (tag or "-")
+
+
 def _hub_tag_digest(repo: str, tag: str) -> str | None:
     """Get a tag's digest from Docker Hub metadata without a registry pull."""
     hub = _docker_hub_repo(repo)

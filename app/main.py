@@ -194,6 +194,9 @@ def dashboard(request: Request):
     image_summary = image_updates.summary(containers)
     schedule_coverage = scheduler.coverage(containers)
     for container in containers:
+        container["image_version"] = image_updates.image_version(
+            container.get("configured_image") or container.get("image") or ""
+        )
         container["image_update"] = image_summary["states"].get(
             container["name"], image_updates.UNKNOWN
         )
@@ -623,11 +626,23 @@ def container_detail(request: Request, name: str):
         detail = dockerops.container_details(name)
     except Exception as exc:
         return RedirectResponse(f"/?error={urllib.parse.quote(str(exc))}", status_code=302)
+    detail["image_version"] = image_updates.image_version(detail.get("image") or "")
     return templates.TemplateResponse(
         request,
         "container_detail.html",
         {"user": _user(request), "detail": detail},
     )
+
+
+@app.get("/container/{name}/logs")
+def container_logs(request: Request, name: str, tail: int = 200):
+    if not _user(request):
+        return {"error": "not authenticated"}, 401
+    try:
+        lines = dockerops.container_logs(name, tail=max(1, min(1000, tail)))
+    except Exception as exc:
+        return {"error": str(exc)}, 400
+    return {"lines": lines}
 
 
 @app.get("/images/{image_id:path}")

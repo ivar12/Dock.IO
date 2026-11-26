@@ -7,6 +7,7 @@
 <div class="stats">
   <div class="stat {{ 'ok' if detail.state.Running else 'warn' }}"><span class="num">{{ detail.status }}</span><span class="label">status</span></div>
   <div class="stat"><span class="num mono small-text">{{ detail.image }}</span><span class="label">image</span></div>
+  <div class="stat"><span class="num mono small-text">{{ detail.image_version }}</span><span class="label">image version</span></div>
   <div class="stat"><span class="num small-text">{{ detail.short_id }}</span><span class="label">container id</span></div>
   <div class="stat {{ 'warn' if detail.health == 'unhealthy' else '' }}"><span class="num small-text">{{ detail.health or '-' }}</span><span class="label">health</span></div>
 </div>
@@ -30,6 +31,7 @@
     <h2>Configuration</h2>
     <table class="plain">
       <tr><th>Image ID</th><td class="mono"><a href="/images/{{ detail.image_id }}">{{ detail.image_id }}</a></td></tr>
+      <tr><th>Image version</th><td class="mono">{{ detail.image_version }}</td></tr>
       <tr><th>Created</th><td class="mono">{{ detail.created | localtime }}</td></tr>
       <tr><th>Command</th><td class="mono">{{ detail.command or '-' }}</td></tr>
       <tr><th>Entrypoint</th><td class="mono">{{ detail.entrypoint or '-' }}</td></tr>
@@ -103,4 +105,18 @@
     </table>
   </section>
 </div>
+
+<section class="card" id="container-logs-card" style="margin-top:20px">
+  <div class="section-head">
+    <h2>Container logs</h2>
+    <div class="actions">
+      <button type="button" class="small primary" id="logs-toggle">View live logs</button>
+      <button type="button" class="small" id="logs-refresh" hidden>Refresh now</button>
+      <label class="check" id="logs-auto-label" hidden><input type="checkbox" id="logs-auto" checked> Auto-update logs</label>
+    </div>
+  </div>
+  <p class="muted small-text" id="logs-hint">Open the logs to see the latest 200 lines. Uncheck Auto-update logs to pause live refresh.</p>
+  <pre class="log-output" id="logs-output" hidden></pre>
+</section>
+<script src="/static/container-logs.js" data-container="{{ detail.name }}" defer></script>
 {% endblock %}

@@ -20,7 +20,7 @@
 - **Spot new releases** — the running version appears beside the Dock.IO title, and an update-available badge links to the latest GitHub release.
 - **Schedule updates** — multiple cron schedules for all containers, selected containers, or an explicit list. Schedules can be created and edited, and the New/Edit forms include a date/time-style cron helper.
 - **Clear schedule status** — the container list shows `no schedule` when no enabled schedule would update a container; otherwise the label shows the name(s) of the schedules that cover it, for example `weekly`.
-- **Inspect resources** — Show pages for containers, images, networks, and schedules with configuration, state, mounts, environment, labels, and attachments.
+- **Inspect resources** — container details include the image version and optional live logs; Show pages for images, networks, and schedules include configuration, state, mounts, environment, labels, and attachments.
 - **Find things fast** — every list page has a live search box plus status/usage filters.
 - **Delete safely** — unused images and networks can be removed; in-use and system resources are protected.
 - **Authenticate users** — local bcrypt admin plus generic OIDC login.
@@ -123,7 +123,8 @@ docker compose up -d
 
 ## Using it
 
-- **Containers / Images / Networks / Schedules** — use the **Show** button in each row for details.
+- **Containers** — click the container name to open its details; the table shows the image and its version. Images / Networks / Schedules still use the **Show** button.
+- **Container logs** — from a container page, use **View live logs** to load the latest 200 lines. Uncheck **Auto-update logs** to pause the live refresh, or use **Refresh now** for a one-off read.
 - **Bulk actions** — tick the checkboxes in Containers, Images or Networks, choose an action in the bar above the table, then apply it.
 - **Updates** — watch live container update progress, see the running/latest Dock.IO version, and check GitHub for a new release.
 - **Self-update** — Dock.IO can update its own container. It pulls the new image, then a short-lived helper container recreates, restarts and checks it before marking the update complete; the app is unavailable for a few seconds. The Docker socket must be mounted (as it is in the supplied `docker-compose.yml`). The first upgrade from an older version still needs a manual `docker compose pull && docker compose up -d`.
